@@ -1,0 +1,79 @@
+{
+  "name": "openclaw-avatar-plugin",
+  "version": "0.1.0",
+  "description": "Local, renderer-neutral animated avatar surface for OpenClaw voice sessions",
+  "type": "module",
+  "main": "dist/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RomneyDa/openclaw-avatar-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/RomneyDa/openclaw-avatar-plugin/issues"
+  },
+  "homepage": "https://github.com/RomneyDa/openclaw-avatar-plugin#readme",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE.md",
+    "README.md",
+    "openclaw.plugin.json"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "npm run build && node scripts/browser-smoke.mjs",
+    "test:package": "npm run build && node scripts/verify-package.mjs && node scripts/test-clean-install.mjs",
+    "demo": "npm run build && node dist/demo.mjs --open",
+    "demo:headless": "npm run build && node dist/demo.mjs",
+    "check": "npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:package",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.22.3"
+  },
+  "keywords": [
+    "openclaw",
+    "avatar",
+    "voice",
+    "lip-sync",
+    "canvas"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.7.2-beta.2"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
+    "esbuild": "^0.25.12",
+    "openclaw": "2026.7.2-beta.2",
+    "playwright-core": "^1.52.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.2"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.mjs"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.7.2-beta.2",
+      "minGatewayVersion": "2026.7.2-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.7.2-beta.2",
+      "pluginSdkVersion": "2026.7.2-beta.2"
+    }
+  }
+}
