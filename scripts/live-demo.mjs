@@ -4,6 +4,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const visible = process.argv.includes("--headed");
+const outputDir = visible
+  ? path.join(root, "tmp", "live-visible")
+  : path.join(root, "docs", "evidence");
 const candidates = [
   process.env.OPENCLAW_CORE_PATH,
   path.resolve(root, "../openclaw"),
@@ -29,7 +33,7 @@ const result = spawnSync(
     "--plugin-root",
     root,
     "--output-dir",
-    path.join(root, "docs", "evidence"),
+    outputDir,
     ...process.argv.slice(2),
   ],
   { cwd: coreRoot, env: process.env, stdio: "inherit" },

@@ -32,6 +32,7 @@
     "demo": "npm run build && node dist/demo.mjs --open",
     "demo:headless": "npm run build && node dist/demo.mjs",
     "demo:live": "npm run build && node scripts/live-demo.mjs",
+    "demo:live:visible": "npm run build && node scripts/live-demo.mjs --headed --speaking-view-ms 15000 --neutral-view-ms 15000",
     "check": "npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:package",
     "prepack": "npm run build"
   },

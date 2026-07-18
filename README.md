@@ -54,6 +54,16 @@ unset avatar_key
 OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live
 ```
 
+To watch the real session, launch the headed mode. It opens Chrome, keeps the live speaking avatar
+visible for 15 seconds, cancels output, then holds the listening state for another 15 seconds:
+
+```bash
+OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live:visible
+```
+
+Visible runs write their transient proof under ignored `tmp/live-visible/`; the normal command above
+continues to refresh the checked-in evidence.
+
 On success the helper captures `docs/evidence/live-speaking.png`, `live-neutral.png`, and
 metadata-only `live-proof.json`. The proof compares a rolling digest and byte/event counts for the
 Gateway-owned provider output with the exact PCM observed by the plugin renderer, then cancels
