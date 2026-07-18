@@ -15,11 +15,13 @@ describe("OpenClaw plugin entry", () => {
       session: { controls: { registerControlUiDescriptor: (descriptor: unknown) => descriptors.push(descriptor) } },
     };
     avatarPlugin.register?.(api as never);
-    expect(routes).toHaveLength(1);
+    avatarPlugin.register?.(api as never);
+    expect(routes).toHaveLength(2);
     expect(routes[0]).toMatchObject({ path: "/plugins/avatar", auth: "plugin", match: "prefix" });
-    expect(services).toHaveLength(1);
-    expect(descriptors).toHaveLength(1);
+    expect(services).toHaveLength(2);
+    expect(descriptors).toHaveLength(2);
     expect(descriptors[0]).toMatchObject({ surface: "tab", id: "avatar", path: expect.stringContaining("token=") });
+    expect(descriptors[1].path).toBe(descriptors[0].path);
     await services[0].start();
     expect(api.logger.info).toHaveBeenCalledWith(expect.stringContaining("media tap unavailable"));
     await services[0].stop();

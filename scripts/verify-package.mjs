@@ -24,6 +24,7 @@ const required = [
   "dist/types/index.d.ts",
   "openclaw.plugin.json",
   "package.json",
+  "scripts/live-demo.mjs",
 ];
 for (const entry of required) {
   if (!entries.includes(entry)) throw new Error(`package is missing required entry: ${entry}`);

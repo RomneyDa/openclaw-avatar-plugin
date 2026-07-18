@@ -13,6 +13,19 @@ type WireEvent = {
   snapshot?: { generation?: number; currentState?: AvatarState };
 };
 
+type AvatarRendererProof = {
+  generation: number;
+  state: AvatarState;
+  lastSequence: number;
+  receivedAudioEvents: number;
+  receivedAudioBytes: number;
+  receivedAudioHash: string;
+  clearEvents: number;
+  renderedFrames: number;
+  audioLevel: number;
+  audioTarget: number;
+};
+
 const canvas = document.querySelector<HTMLCanvasElement>("#avatar")!;
 const context = canvas.getContext("2d", { alpha: false })!;
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -42,6 +55,27 @@ let blinkStartedAt: number | null = null;
 let blink = 0;
 let lastTime = performance.now();
 let reportAt = 0;
+let receivedAudioEvents = 0;
+let receivedAudioBytes = 0;
+let receivedAudioHash = 0xcbf29ce484222325n;
+let clearEvents = 0;
+
+Object.defineProperty(globalThis, "openclawAvatarProof", {
+  configurable: false,
+  enumerable: false,
+  get: (): AvatarRendererProof => ({
+    generation,
+    state,
+    lastSequence,
+    receivedAudioEvents,
+    receivedAudioBytes,
+    receivedAudioHash: receivedAudioHash.toString(16).padStart(16, "0"),
+    clearEvents,
+    renderedFrames,
+    audioLevel,
+    audioTarget,
+  }),
+});
 
 const stateLabels: Record<AvatarState, string> = {
   idle: "IDLE",
@@ -73,6 +107,12 @@ function clearMouth(): void {
 
 function decodePcmLevel(base64: string): number {
   const binary = atob(base64);
+  receivedAudioEvents += 1;
+  receivedAudioBytes += binary.length;
+  for (let index = 0; index < binary.length; index += 1) {
+    receivedAudioHash ^= BigInt(binary.charCodeAt(index));
+    receivedAudioHash = BigInt.asUintN(64, receivedAudioHash * 0x100000001b3n);
+  }
   const samples = Math.floor(binary.length / 2);
   if (samples === 0) return 0;
   let sum = 0;
@@ -102,6 +142,7 @@ function handleEvent(event: WireEvent): void {
   const eventGeneration = event.generation ?? -1;
   if (eventGeneration < generation) return;
   if (event.type === "clear") {
+    clearEvents += 1;
     generation = eventGeneration;
     lastSequence = -1;
     clearMouth();

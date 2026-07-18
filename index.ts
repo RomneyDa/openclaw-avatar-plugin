@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import {
   definePluginEntry,
@@ -14,6 +15,14 @@ type AvatarPluginConfig = {
   maxSubscriberMediaBytes?: number;
   video?: { width?: number; height?: number; frameRate?: number };
 };
+
+type AvatarProcessGlobal = typeof globalThis & { openclawAvatarRendererToken?: string };
+
+function processRendererToken(): string {
+  const shared = globalThis as AvatarProcessGlobal;
+  shared.openclawAvatarRendererToken ??= randomBytes(24).toString("base64url");
+  return shared.openclawAvatarRendererToken;
+}
 
 export { createAvatarMediaConsumer, type AvatarMediaConsumer, type AvatarMediaSourceAdapter } from "./src/adapter.js";
 export { AvatarBrowserHost, isLoopbackAddress } from "./src/browser-host.js";
@@ -52,6 +61,7 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
     const host = new AvatarBrowserHost({
       session,
       assetsPath: fileURLToPath(new URL("./browser/", import.meta.url)),
+      token: processRendererToken(),
     });
     let detachMedia: (() => void) | null = null;
 

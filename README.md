@@ -31,6 +31,29 @@ npm run demo -- --open
 The demo cycles through listening, thinking, and speaking with generated PCM16LE 24 kHz mono audio,
 then issues an atomic clear so the mouth returns to neutral immediately.
 
+## Live Gateway demo
+
+The live demo uses an owned local Gateway from an OpenClaw `demo/avatar-live` checkout, resolves the
+existing `openai:api-key` profile through OpenClaw's auth API, sends locally synthesized speech
+through `talk.session.create` and `talk.session.appendAudio`, and opens the plugin's authenticated
+Control UI route. It never calls OpenAI from the plugin or writes provider audio or credentials.
+
+```bash
+OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live
+```
+
+On success the helper captures `docs/evidence/live-speaking.png`, `live-neutral.png`, and
+metadata-only `live-proof.json`. The proof compares a rolling digest and byte/event counts for the
+Gateway-owned provider output with the exact PCM observed by the plugin renderer, then cancels
+output, checks the new clear generation stays neutral, closes the renderer, and verifies provider
+audio continues.
+
+Live proof status (2026-07-17): the owned Gateway loaded the authenticated renderer and created the
+OpenAI Talk session, but OpenAI returned `quota_exceeded` before the session became ready. The live
+screenshots and JSON are therefore intentionally absent; `docs/evidence/avatar-demo.png` remains
+synthetic browser-smoke evidence. Restore quota for the existing `openai:api-key` profile and rerun
+the command above to produce the live artifacts. Do not substitute synthetic output for this proof.
+
 ## Install in OpenClaw
 
 Build and verify the same tarball shape users receive:

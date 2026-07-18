@@ -61,7 +61,15 @@ try {
   if (proof.foreground < 400 || proof.status !== "SPEAKING") {
     throw new Error(`browser frame failed visual proof: ${JSON.stringify(proof)}`);
   }
-  const hostSnapshot = host.snapshot();
+  const readinessDeadline = Date.now() + 2_000;
+  let hostSnapshot = host.snapshot();
+  while (
+    Date.now() < readinessDeadline &&
+    (!hostSnapshot.firstFrameValidated || hostSnapshot.readyClients !== 1)
+  ) {
+    await page.waitForTimeout(20);
+    hostSnapshot = host.snapshot();
+  }
   if (!hostSnapshot.firstFrameValidated || hostSnapshot.readyClients !== 1) {
     throw new Error(`renderer did not report validated readiness: ${JSON.stringify(hostSnapshot)}`);
   }
