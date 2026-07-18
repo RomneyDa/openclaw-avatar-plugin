@@ -16,12 +16,40 @@ type AvatarPluginConfig = {
   video?: { width?: number; height?: number; frameRate?: number };
 };
 
-type AvatarProcessGlobal = typeof globalThis & { openclawAvatarRendererToken?: string };
+type AvatarProcessState = {
+  session: AvatarSession;
+  host: AvatarBrowserHost;
+  detachMedia: (() => void) | null;
+  serviceStarts: number;
+};
 
-function processRendererToken(): string {
+type AvatarProcessGlobal = typeof globalThis & { openclawAvatarPluginState?: AvatarProcessState };
+
+function processAvatarState(
+  api: Parameters<NonNullable<OpenClawPluginDefinition["register"]>>[0],
+  config: AvatarPluginConfig,
+): AvatarProcessState {
   const shared = globalThis as AvatarProcessGlobal;
-  shared.openclawAvatarRendererToken ??= randomBytes(24).toString("base64url");
-  return shared.openclawAvatarRendererToken;
+  if (!shared.openclawAvatarPluginState) {
+    const session = new AvatarSession({
+      maxAudioChunkBytes: config.maxAudioChunkBytes ?? 96_000,
+      maxSubscriberMediaBytes: config.maxSubscriberMediaBytes ?? 1_048_576,
+      onSubscriberError: (id, error) => {
+        api.logger.warn(`avatar subscriber ${id} detached: ${error.message}`);
+      },
+    });
+    shared.openclawAvatarPluginState = {
+      session,
+      host: new AvatarBrowserHost({
+        session,
+        assetsPath: fileURLToPath(new URL("./browser/", import.meta.url)),
+        token: randomBytes(24).toString("base64url"),
+      }),
+      detachMedia: null,
+      serviceStarts: 0,
+    };
+  }
+  return shared.openclawAvatarPluginState;
 }
 
 export { createAvatarMediaConsumer, type AvatarMediaConsumer, type AvatarMediaSourceAdapter } from "./src/adapter.js";
@@ -51,19 +79,8 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
       height: config.video?.height ?? 720,
       frameRate: config.video?.frameRate ?? 30,
     };
-    const session = new AvatarSession({
-      maxAudioChunkBytes: config.maxAudioChunkBytes ?? 96_000,
-      maxSubscriberMediaBytes: config.maxSubscriberMediaBytes ?? 1_048_576,
-      onSubscriberError: (id, error) => {
-        api.logger.warn(`avatar subscriber ${id} detached: ${error.message}`);
-      },
-    });
-    const host = new AvatarBrowserHost({
-      session,
-      assetsPath: fileURLToPath(new URL("./browser/", import.meta.url)),
-      token: processRendererToken(),
-    });
-    let detachMedia: (() => void) | null = null;
+    const state = processAvatarState(api, config);
+    const { host, session } = state;
 
     api.registerHttpRoute({
       path: "/plugins/avatar",
@@ -86,8 +103,10 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
     api.registerService({
       id: "avatar",
       start: async () => {
-        detachMedia = attachOpenClawOutputMedia({ runtime: api.runtime, session, video });
-        if (!detachMedia) {
+        state.serviceStarts += 1;
+        if (state.serviceStarts > 1) return;
+        state.detachMedia = attachOpenClawOutputMedia({ runtime: api.runtime, session, video });
+        if (!state.detachMedia) {
           session.start({ sessionId: "local-idle", video });
           session.state("listening", 0);
           api.logger.info("avatar media tap unavailable; local idle/standalone renderer remains ready");
@@ -98,8 +117,10 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
         }
       },
       stop: async () => {
-        detachMedia?.();
-        detachMedia = null;
+        state.serviceStarts = Math.max(0, state.serviceStarts - 1);
+        if (state.serviceStarts > 0) return;
+        state.detachMedia?.();
+        state.detachMedia = null;
         session.end("plugin-stopped");
         await host.stop();
       },
