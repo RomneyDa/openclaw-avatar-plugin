@@ -64,6 +64,14 @@ OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live:visible
 Visible runs write their transient proof under ignored `tmp/live-visible/`; the normal command above
 continues to refresh the checked-in evidence.
 
+For an actual continuous voice conversation, use the interactive mode. It captures your microphone,
+streams PCM through OpenClaw's Gateway Talk session, plays the assistant response, and drives the
+avatar from that same response. Click **END DEMO** in Chrome when finished:
+
+```bash
+OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live:interactive
+```
+
 On success the helper captures `docs/evidence/live-speaking.png`, `live-neutral.png`, and
 metadata-only `live-proof.json`. The proof compares a rolling digest and byte/event counts for the
 Gateway-owned provider output with the exact PCM observed by the plugin renderer, then cancels
