@@ -2,15 +2,17 @@
 
 An external [OpenClaw](https://github.com/openclaw/openclaw) plugin that turns the exact outgoing
 audio from an existing voice session into a polished, local animated avatar. The MVP ships an
-original code-native 2D canvas character (“Clawbit”), an authenticated browser host, a canonical
+code-native animated version of the OpenClaw icon, an authenticated browser host, a canonical
 renderer event contract, and bounded session fanout.
 
 ![Clawbit speaking in the browser smoke test](docs/evidence/avatar-demo.png)
 
-The plugin never opens a model/provider session, accepts provider credentials, plays a second copy
-of the audio, or records media. On an OpenClaw build with the generic Talk output-media tap it
-observes the already-owned PCM stream. On stock builds without that tap, the UI and synthetic demo
-still work and the plugin reports the missing attachment without affecting audio.
+The browser never receives provider credentials or runs agent tools. Its default-on microphone
+streams PCM into a Gateway-owned Talk session; Gateway owns Realtime, workspace/tool execution,
+waiting for agent completion, and the spoken response. The avatar independently observes the
+canonical Talk output-media stream, including output produced by other Talk surfaces. On stock
+builds without that tap, the UI and synthetic demo still work and the plugin reports the missing
+attachment without affecting audio.
 
 ## Quick demo
 
@@ -64,9 +66,13 @@ OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live:visible
 Visible runs write their transient proof under ignored `tmp/live-visible/`; the normal command above
 continues to refresh the checked-in evidence.
 
-For an actual continuous voice conversation, use the interactive mode. It captures your microphone,
-streams PCM through OpenClaw's Gateway Talk session, plays the assistant response, and drives the
-avatar from that same response. Click **END DEMO** in Chrome when finished:
+For an actual continuous voice conversation, use the interactive mode. It opens the real
+Gateway-hosted plugin page, whose default-on **MIC ON** toggle captures your microphone, streams PCM
+through Gateway Talk, plays the assistant response, and drives the avatar from that same response.
+The page creates the session with `agentConsultOwner: "gateway"`, so substantive transcripts run in
+the configured OpenClaw agent workspace and the completed result returns to the same Realtime voice
+session. The page itself remains only a microphone, audio player, and Talk-output renderer.
+Turn the toggle off to stop Talk, or close Chrome to end the demo:
 
 ```bash
 OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live:interactive
@@ -120,6 +126,7 @@ Configuration belongs under `plugins.entries.avatar.config`:
         "enabled": true,
         "config": {
           "enabled": true,
+          "sessionKey": "agent:main:main",
           "standalonePort": 0,
           "maxAudioChunkBytes": 96000,
           "maxSubscriberMediaBytes": 1048576,
@@ -135,10 +142,11 @@ Configuration belongs under `plugins.entries.avatar.config`:
 }
 ```
 
+`sessionKey` selects the OpenClaw session whose agent/workspace context backs microphone requests.
 `standalonePort: 0` (default) disables the additional development server. A nonzero value starts
-the same authenticated host on `127.0.0.1`; the Gateway route remains the preferred installed
-surface. The renderer URL contains a fresh 192-bit process token and must be treated like a local
-session URL.
+the authenticated view-only host on `127.0.0.1`; microphone Talk remains available only on the
+Gateway-hosted route. The renderer URL contains a fresh 192-bit process token and must be treated
+like a local session URL.
 
 ## Media and renderer contract
 
@@ -210,11 +218,14 @@ The implementation was checked against OpenClaw `origin/main` at
   plugin a sandboxed Control UI frame;
 - external plugins cannot ship a native bundled Control UI view, so the supported iframe route is
   the correct surface;
-- the plugin imports only `openclaw/plugin-sdk/plugin-entry` and does not reach into core internals.
+- authenticated plugin HTTP routes can use the public `gateway-method-runtime` contract to invoke
+  normal Talk methods with the caller's Gateway scopes;
+- the plugin imports only public `openclaw/plugin-sdk/*` modules and does not reach into core internals.
 
-The route declares plugin-managed authentication because its random token and loopback check are
-the complete renderer security boundary. It does not assume Gateway operator scopes or dispatch
-privileged Gateway helpers from the frame.
+The installed route requires Gateway authentication, the manifest's explicit authenticated-request
+dispatch contract, operator Talk scopes, the per-process renderer token, and a loopback peer. The
+browser never receives provider credentials; microphone input reaches OpenAI only through standard
+`talk.session.create`, `talk.session.appendAudio`, and `talk.session.close` Gateway methods.
 
 ## Existing-solutions preflight
 
@@ -260,8 +271,8 @@ rendered frame counts, first-frame validation, readiness, and a bounded last ren
 Normal operation never writes PCM, frames, portraits, transcripts, credentials, or provider data.
 The checked-in screenshot is produced only by the explicit browser-smoke command. Logs contain no
 media and do not include the renderer token/URL. Browser assets are local, CSP blocks remote assets,
-media, objects, forms, broad eval, and inline script/style. Every HTTP and WebSocket request requires
-the per-process token and a loopback peer address.
+media, objects, forms, broad eval, and inline script/style. Every installed-page HTTP and WebSocket
+request requires Gateway authentication, the per-process token, and a loopback peer address.
 
 ## Validation
 

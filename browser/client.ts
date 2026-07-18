@@ -1,6 +1,7 @@
 type AvatarState = "idle" | "listening" | "thinking" | "speaking" | "error";
 type WireEvent = {
   type?: string;
+  sessionId?: string;
   generation?: number;
   sequence?: number;
   ptsMs?: number;
@@ -32,11 +33,19 @@ type AudioEnvelopeFrame = {
   level: number;
 };
 
+const BARGE_IN_RMS_THRESHOLD = 0.02;
+const BARGE_IN_PEAK_THRESHOLD = 0.08;
+const BARGE_IN_CONSECUTIVE_FRAMES = 2;
+
 const canvas = document.querySelector<HTMLCanvasElement>("#avatar")!;
 const context = canvas.getContext("2d", { alpha: false })!;
 const status = document.querySelector<HTMLElement>("#status")!;
 const statusLabel = document.querySelector<HTMLElement>("#status-label")!;
 const errorBox = document.querySelector<HTMLElement>("#error")!;
+const talkToggle = document.querySelector<HTMLInputElement>("#talk-toggle")!;
+const talkToggleLabel = document.querySelector<HTMLElement>("#talk-toggle-label")!;
+const talkEnabled = document.body.dataset.talkEnabled === "true";
+const talkPath = document.body.dataset.talkPath ?? "/plugins/avatar-talk";
 const token = new URL(location.href).searchParams.get("token") ?? "";
 const routeBase = location.pathname.replace(/\/$/u, "");
 const protocol = location.protocol === "https:" ? "wss:" : "ws:";
@@ -69,6 +78,20 @@ let receivedAudioEvents = 0;
 let receivedAudioBytes = 0;
 let receivedAudioHash = 0xcbf29ce484222325n;
 let clearEvents = 0;
+let currentSessionId: string | null = null;
+let localTalkSessionId: string | null = null;
+let microphoneStream: MediaStream | null = null;
+let microphoneContext: AudioContext | null = null;
+let microphoneProcessor: ScriptProcessorNode | null = null;
+let microphoneInput: MediaStreamAudioSourceNode | null = null;
+let microphoneSilentOutput: GainNode | null = null;
+let microphoneTimestamp = 0;
+let microphoneDispatch = Promise.resolve();
+let speechFramesDuringPlayback = 0;
+let cancelOutputPending = false;
+let playbackContext: AudioContext | null = null;
+let playbackAt = 0;
+const playbackSources = new Set<AudioBufferSourceNode>();
 
 Object.defineProperty(globalThis, "openclawAvatarProof", {
   configurable: false,
@@ -201,6 +224,193 @@ function advanceAudioEnvelope(now: number): boolean {
   return true;
 }
 
+async function requestTalk<T>(suffix: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(`${talkPath}/${suffix}?token=${encodeURIComponent(token)}`, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const payload = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!response.ok) {
+    throw new Error(typeof payload.error === "string" ? payload.error : `Talk ${suffix} failed`);
+  }
+  return payload as T;
+}
+
+function encodePcm16(input: Float32Array, sampleRate: number): string {
+  const sampleCount = Math.max(1, Math.round((input.length * 24_000) / sampleRate));
+  const pcm = new Uint8Array(sampleCount * 2);
+  for (let index = 0; index < sampleCount; index += 1) {
+    const sourceIndex = Math.min(
+      input.length - 1,
+      Math.floor((index * sampleRate) / 24_000),
+    );
+    const normalized = Math.max(-1, Math.min(1, input[sourceIndex] ?? 0));
+    const sample = Math.round(normalized < 0 ? normalized * 0x8000 : normalized * 0x7fff);
+    pcm[index * 2] = sample & 0xff;
+    pcm[index * 2 + 1] = (sample >> 8) & 0xff;
+  }
+  let binary = "";
+  for (const byte of pcm) binary += String.fromCharCode(byte);
+  microphoneTimestamp += (sampleCount / 24_000) * 1000;
+  return btoa(binary);
+}
+
+function showTalkError(error: unknown): void {
+  errorBox.hidden = false;
+  errorBox.textContent = error instanceof Error ? error.message : "Microphone Talk failed";
+}
+
+function clearPlayback(): void {
+  for (const source of playbackSources) source.stop();
+  playbackSources.clear();
+  playbackAt = playbackContext?.currentTime ?? 0;
+  speechFramesDuringPlayback = 0;
+}
+
+function detectBargeIn(samples: Float32Array): boolean {
+  const audioContext = playbackContext;
+  const playbackActive = Boolean(
+    audioContext &&
+      (playbackSources.size > 0 || playbackAt > audioContext.currentTime + 0.03),
+  );
+  if (!playbackActive || cancelOutputPending) {
+    speechFramesDuringPlayback = 0;
+    return false;
+  }
+  let sum = 0;
+  let peak = 0;
+  for (const sample of samples) {
+    sum += sample * sample;
+    peak = Math.max(peak, Math.abs(sample));
+  }
+  const rms = samples.length > 0 ? Math.sqrt(sum / samples.length) : 0;
+  speechFramesDuringPlayback =
+    rms >= BARGE_IN_RMS_THRESHOLD && peak >= BARGE_IN_PEAK_THRESHOLD
+      ? speechFramesDuringPlayback + 1
+      : 0;
+  return speechFramesDuringPlayback >= BARGE_IN_CONSECUTIVE_FRAMES;
+}
+
+function playPcm(base64: string): void {
+  const audioContext = playbackContext;
+  if (!audioContext || localTalkSessionId !== currentSessionId) return;
+  const binary = atob(base64);
+  const sampleCount = Math.floor(binary.length / 2);
+  const buffer = audioContext.createBuffer(1, sampleCount, 24_000);
+  const channel = buffer.getChannelData(0);
+  for (let index = 0; index < sampleCount; index += 1) {
+    let sample = binary.charCodeAt(index * 2) | (binary.charCodeAt(index * 2 + 1) << 8);
+    if (sample >= 0x8000) sample -= 0x10000;
+    channel[index] = sample / 0x8000;
+  }
+  const source = audioContext.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioContext.destination);
+  playbackSources.add(source);
+  source.addEventListener("ended", () => playbackSources.delete(source));
+  const startAt = Math.max(audioContext.currentTime + 0.02, playbackAt);
+  source.start(startAt);
+  playbackAt = startAt + buffer.duration;
+}
+
+async function stopMicrophone(): Promise<void> {
+  const sessionId = localTalkSessionId;
+  localTalkSessionId = null;
+  microphoneProcessor?.disconnect();
+  microphoneInput?.disconnect();
+  microphoneSilentOutput?.disconnect();
+  microphoneStream?.getTracks().forEach((track) => track.stop());
+  microphoneProcessor = null;
+  microphoneInput = null;
+  microphoneSilentOutput = null;
+  microphoneStream = null;
+  clearPlayback();
+  const closeContexts: Promise<void>[] = [];
+  if (microphoneContext) closeContexts.push(microphoneContext.close());
+  if (playbackContext) closeContexts.push(playbackContext.close());
+  await Promise.allSettled(closeContexts);
+  microphoneContext = null;
+  playbackContext = null;
+  if (sessionId) {
+    await microphoneDispatch.catch(() => undefined);
+    await requestTalk("stop", { sessionId }).catch((error: unknown) => showTalkError(error));
+  }
+  talkToggleLabel.textContent = "MIC OFF";
+}
+
+async function startMicrophone(): Promise<void> {
+  if (!talkEnabled || localTalkSessionId || microphoneStream) return;
+  talkToggle.disabled = true;
+  talkToggleLabel.textContent = "STARTING";
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        autoGainControl: true,
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    });
+    microphoneStream = stream;
+    const started = await requestTalk<{ sessionId?: unknown }>("start", {});
+    if (typeof started.sessionId !== "string" || !started.sessionId) {
+      throw new Error("OpenClaw did not return a Talk session id");
+    }
+    localTalkSessionId = started.sessionId;
+    microphoneTimestamp = 0;
+    playbackContext = new AudioContext({ sampleRate: 24_000 });
+    await playbackContext.resume();
+    playbackAt = playbackContext.currentTime;
+    microphoneContext = new AudioContext();
+    await microphoneContext.resume();
+    microphoneInput = microphoneContext.createMediaStreamSource(stream);
+    microphoneProcessor = microphoneContext.createScriptProcessor(4096, 1, 1);
+    microphoneSilentOutput = microphoneContext.createGain();
+    microphoneSilentOutput.gain.value = 0;
+    microphoneProcessor.addEventListener("audioprocess", (event) => {
+      const sessionId = localTalkSessionId;
+      const audioContext = microphoneContext;
+      if (!sessionId || !audioContext) return;
+      const timestamp = microphoneTimestamp;
+      const samples = event.inputBuffer.getChannelData(0);
+      const bargeIn = detectBargeIn(samples);
+      if (bargeIn) {
+        cancelOutputPending = true;
+        clearPlayback();
+      }
+      const audioBase64 = encodePcm16(
+        samples,
+        audioContext.sampleRate,
+      );
+      microphoneDispatch = microphoneDispatch
+        .then(async () => {
+          if (bargeIn) {
+            try {
+              await requestTalk("cancel-output", { sessionId });
+            } finally {
+              cancelOutputPending = false;
+            }
+          }
+        })
+        .then(() => requestTalk("audio", { sessionId, audioBase64, timestamp }))
+        .then(() => undefined)
+        .catch((error: unknown) => showTalkError(error));
+    });
+    microphoneInput.connect(microphoneProcessor);
+    microphoneProcessor.connect(microphoneSilentOutput);
+    microphoneSilentOutput.connect(microphoneContext.destination);
+    talkToggleLabel.textContent = "MIC ON";
+  } catch (error) {
+    await stopMicrophone();
+    talkToggle.checked = false;
+    showTalkError(error);
+  } finally {
+    talkToggle.disabled = false;
+  }
+}
+
 function handleEvent(event: WireEvent): void {
   if (event.type === "host.hello") {
     generation = event.snapshot?.generation ?? generation;
@@ -208,6 +418,7 @@ function handleEvent(event: WireEvent): void {
     return;
   }
   if (event.type === "session.start") {
+    currentSessionId = event.sessionId ?? null;
     generation = event.generation ?? 0;
     lastSequence = -1;
     clearMouth();
@@ -217,6 +428,7 @@ function handleEvent(event: WireEvent): void {
   const eventGeneration = event.generation ?? -1;
   if (eventGeneration < generation) return;
   if (event.type === "clear") {
+    if (currentSessionId === localTalkSessionId) clearPlayback();
     clearEvents += 1;
     generation = eventGeneration;
     lastSequence = -1;
@@ -234,6 +446,7 @@ function handleEvent(event: WireEvent): void {
   }
   if (event.type === "audio" && event.pcmBase64) {
     queuePcmEnvelope(event.pcmBase64, event.ptsMs ?? audioEndPtsMs);
+    playPcm(event.pcmBase64);
     pendingState = null;
     setState("speaking");
   } else if (event.type === "visemes" && event.weights) {
@@ -252,6 +465,8 @@ function handleEvent(event: WireEvent): void {
   } else if (event.type === "expression") {
     expressionTarget = Math.max(0, Math.min(1, event.intensity ?? 0));
   } else if (event.type === "session.end") {
+    if (currentSessionId === localTalkSessionId) clearPlayback();
+    currentSessionId = null;
     clearMouth();
     setState("idle");
   }
@@ -260,6 +475,7 @@ function handleEvent(event: WireEvent): void {
 socket.addEventListener("open", () => {
   connected = true;
   setState(state);
+  if (talkEnabled && talkToggle.checked) void startMicrophone();
 });
 socket.addEventListener("message", (message) => {
   try {
@@ -271,6 +487,7 @@ socket.addEventListener("message", (message) => {
   }
 });
 socket.addEventListener("close", () => {
+  void stopMicrophone();
   connected = false;
   clearMouth();
   statusLabel.textContent = "DISCONNECTED";
@@ -280,6 +497,12 @@ socket.addEventListener("error", () => {
   errorBox.textContent = "The local avatar event stream is unavailable.";
   setState("error");
 });
+
+talkToggle.addEventListener("change", () => {
+  if (talkToggle.checked) void startMicrophone();
+  else void stopMicrophone();
+});
+window.addEventListener("pagehide", () => void stopMicrophone());
 
 function roundedRect(x: number, y: number, width: number, height: number, radius: number): void {
   context.beginPath();
@@ -408,8 +631,8 @@ function reportRenderer(firstFrame?: { nonBackground: boolean; foregroundPixels:
 function draw(now: number, forced = false): void {
   const rect = canvas.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const width = Math.max(320, Math.round(rect.width * dpr));
-  const height = Math.max(240, Math.round(rect.height * dpr));
+  const width = Math.max(1, Math.round(rect.width * dpr));
+  const height = Math.max(1, Math.round(rect.height * dpr));
   if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;

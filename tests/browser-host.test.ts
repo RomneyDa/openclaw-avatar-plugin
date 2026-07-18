@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { WebSocket } from "ws";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { AvatarBrowserHost } from "../src/browser-host.js";
 import { AvatarSession } from "../src/session.js";
 
@@ -30,6 +30,60 @@ function nextJson(socket: WebSocket): Promise<Record<string, unknown>> {
 }
 
 describe("AvatarBrowserHost", () => {
+  it("accepts token-authenticated microphone Talk requests on the Gateway-hosted route", async () => {
+    const start = vi.fn(async () => ({ sessionId: "talk-1" }));
+    const appendAudio = vi.fn(async () => undefined);
+    const cancelOutput = vi.fn(async () => undefined);
+    const stop = vi.fn(async () => undefined);
+    const host = new AvatarBrowserHost({
+      session: new AvatarSession(),
+      assetsPath: assets(),
+      token: "test-token",
+      talk: { start, appendAudio, cancelOutput, stop },
+    });
+    const invoke = async (suffix: string, body: Record<string, unknown>) => {
+      let responseBody = "";
+      const requestBody = Buffer.from(JSON.stringify(body));
+      const request = {
+        method: "POST",
+        url: `/plugins/avatar-talk/${suffix}?token=test-token`,
+        socket: { remoteAddress: "127.0.0.1", localPort: 9999 },
+        async *[Symbol.asyncIterator]() {
+          yield requestBody;
+        },
+      };
+      const response = {
+        statusCode: 200,
+        setHeader: vi.fn(),
+        end: (value = "") => {
+          responseBody = value;
+        },
+      };
+      await host.handleGatewayTalkRequest(request as never, response as never);
+      return { status: response.statusCode, body: JSON.parse(responseBody) };
+    };
+
+    expect(await invoke("start", {})).toEqual({ status: 200, body: { sessionId: "talk-1" } });
+    expect(
+      await invoke("audio", { sessionId: "talk-1", audioBase64: "AAE=", timestamp: 25 }),
+    ).toEqual({ status: 200, body: { ok: true } });
+    expect(await invoke("stop", { sessionId: "talk-1" })).toEqual({
+      status: 200,
+      body: { ok: true },
+    });
+    expect(appendAudio).toHaveBeenCalledWith({
+      sessionId: "talk-1",
+      audioBase64: "AAE=",
+      timestamp: 25,
+    });
+    expect(await invoke("cancel-output", { sessionId: "talk-1" })).toEqual({
+      status: 200,
+      body: { ok: true },
+    });
+    expect(cancelOutput).toHaveBeenCalledWith("talk-1");
+    expect(stop).toHaveBeenCalledWith("talk-1");
+  });
+
   it("serves only authenticated loopback requests with a strict CSP", async () => {
     const host = new AvatarBrowserHost({ session: new AvatarSession(), assetsPath: assets(), token: "test-token" });
     hosts.push(host);

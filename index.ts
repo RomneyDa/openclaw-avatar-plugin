@@ -4,12 +4,14 @@ import {
   definePluginEntry,
   type OpenClawPluginDefinition,
 } from "openclaw/plugin-sdk/plugin-entry";
+import { dispatchGatewayMethod } from "openclaw/plugin-sdk/gateway-method-runtime";
 import { AvatarBrowserHost } from "./src/browser-host.js";
 import { attachOpenClawOutputMedia } from "./src/openclaw-adapter.js";
 import { AvatarSession } from "./src/session.js";
 
 type AvatarPluginConfig = {
   enabled?: boolean;
+  sessionKey?: string;
   standalonePort?: number;
   maxAudioChunkBytes?: number;
   maxSubscriberMediaBytes?: number;
@@ -24,6 +26,17 @@ type AvatarProcessState = {
 };
 
 type AvatarProcessGlobal = typeof globalThis & { openclawAvatarPluginState?: AvatarProcessState };
+
+async function requestTalkGateway<T>(
+  method: string,
+  params: Record<string, unknown>,
+): Promise<T> {
+  const response = await dispatchGatewayMethod(method, params, { timeoutMs: 30_000 });
+  if (!response.ok) {
+    throw new Error(response.error?.message ?? `${method} failed`);
+  }
+  return response.payload as T;
+}
 
 function processAvatarState(
   api: Parameters<NonNullable<OpenClawPluginDefinition["register"]>>[0],
@@ -44,6 +57,37 @@ function processAvatarState(
         session,
         assetsPath: fileURLToPath(new URL("./browser/", import.meta.url)),
         token: randomBytes(24).toString("base64url"),
+        talk: {
+          start: async () => {
+            const sessionKey = config.sessionKey?.trim() || "agent:main:main";
+            const result = await requestTalkGateway<{ sessionId?: unknown }>(
+              "talk.session.create",
+              {
+                mode: "realtime",
+                transport: "gateway-relay",
+                brain: "agent-consult",
+                sessionKey,
+                agentConsultOwner: "gateway",
+              },
+            );
+            if (typeof result.sessionId !== "string" || !result.sessionId) {
+              throw new Error("OpenClaw did not return a Talk session id");
+            }
+            return { sessionId: result.sessionId };
+          },
+          appendAudio: async (params) => {
+            await requestTalkGateway("talk.session.appendAudio", params);
+          },
+          cancelOutput: async (sessionId) => {
+            await requestTalkGateway("talk.session.cancelOutput", {
+              sessionId,
+              reason: "barge-in",
+            });
+          },
+          stop: async (sessionId) => {
+            await requestTalkGateway("talk.session.close", { sessionId });
+          },
+        },
       }),
       detachMedia: null,
       serviceStarts: 0,
@@ -89,6 +133,12 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
       handler: (request, response) => host.handleRequest(request, response),
       handleUpgrade: (request, socket, head) => host.handleUpgrade(request, socket, head),
     });
+    api.registerHttpRoute({
+      path: "/plugins/avatar-talk",
+      auth: "gateway",
+      match: "prefix",
+      handler: (request, response) => host.handleGatewayTalkRequest(request, response),
+    });
     api.session.controls.registerControlUiDescriptor({
       surface: "tab",
       id: "avatar",
@@ -97,7 +147,7 @@ const avatarPlugin: OpenClawPluginDefinition = definePluginEntry({
       icon: "sparkles",
       group: "agent",
       order: 20,
-      requiredScopes: ["operator.read"],
+      requiredScopes: ["operator.read", "operator.write", "operator.talk.secrets"],
       path: host.rendererPath,
     });
     api.registerService({

@@ -24,11 +24,21 @@ describe("OpenClaw plugin entry", () => {
     };
     avatarPlugin.register?.(api as never);
     avatarPlugin.register?.(api as never);
-    expect(routes).toHaveLength(2);
+    expect(routes).toHaveLength(4);
     expect(routes[0]).toMatchObject({ path: "/plugins/avatar", auth: "plugin", match: "prefix" });
+    expect(routes[1]).toMatchObject({
+      path: "/plugins/avatar-talk",
+      auth: "gateway",
+      match: "prefix",
+    });
     expect(services).toHaveLength(2);
     expect(descriptors).toHaveLength(2);
-    expect(descriptors[0]).toMatchObject({ surface: "tab", id: "avatar", path: expect.stringContaining("token=") });
+    expect(descriptors[0]).toMatchObject({
+      surface: "tab",
+      id: "avatar",
+      path: expect.stringContaining("token="),
+      requiredScopes: ["operator.read", "operator.write", "operator.talk.secrets"],
+    });
     expect(descriptors[1].path).toBe(descriptors[0].path);
     await services[0].start();
     await services[1].start();
@@ -50,7 +60,7 @@ describe("OpenClaw plugin entry", () => {
     const rendererUrl = new URL(descriptors[1].path, "http://127.0.0.1");
     rendererUrl.pathname = "/plugins/avatar/health";
     let body = "";
-    await routes[1].handler(
+    await routes[2].handler(
       {
         method: "GET",
         url: `${rendererUrl.pathname}${rendererUrl.search}`,

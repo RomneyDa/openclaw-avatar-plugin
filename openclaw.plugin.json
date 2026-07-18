@@ -5,11 +5,15 @@
   "activation": {
     "onStartup": true
   },
+  "contracts": {
+    "gatewayMethodDispatch": ["authenticated-request"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
       "enabled": { "type": "boolean", "default": true },
+      "sessionKey": { "type": "string", "default": "agent:main:main" },
       "standalonePort": { "type": "integer", "minimum": 0, "maximum": 65535, "default": 0 },
       "maxAudioChunkBytes": { "type": "integer", "minimum": 2, "maximum": 192000, "default": 96000 },
       "maxSubscriberMediaBytes": { "type": "integer", "minimum": 65536, "maximum": 8388608, "default": 1048576 },

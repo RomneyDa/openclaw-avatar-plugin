@@ -14,6 +14,46 @@ const output = path.resolve(
 );
 fs.mkdirSync(path.dirname(output), { recursive: true });
 
+async function measureResponsiveFrame(page, width, height) {
+  await page.setViewportSize({ width, height });
+  await page.waitForFunction(
+    ([expectedWidth, expectedHeight]) => {
+      const canvas = document.querySelector("canvas");
+      return canvas?.width === expectedWidth && canvas?.height === expectedHeight;
+    },
+    [width, height],
+  );
+  return await page.evaluate(() => {
+    const canvas = document.querySelector("canvas");
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) throw new Error("avatar canvas is missing");
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let minX = canvas.width;
+    let maxX = -1;
+    let minY = canvas.height;
+    let maxY = -1;
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        const offset = (y * canvas.width + x) * 4;
+        if ((data[offset] ?? 255) < 245 || (data[offset + 1] ?? 255) < 245 || (data[offset + 2] ?? 255) < 245) {
+          minX = Math.min(minX, x);
+          maxX = Math.max(maxX, x);
+          minY = Math.min(minY, y);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+      avatarWidth: maxX - minX,
+      avatarHeight: maxY - minY,
+    };
+  });
+}
+
 const session = new AvatarSession();
 const host = new AvatarBrowserHost({ session, assetsPath: path.join(root, "dist", "browser") });
 await host.startStandalone(0);
@@ -60,6 +100,21 @@ try {
   });
   if (proof.foreground < 400 || proof.status !== "SPEAKING") {
     throw new Error(`browser frame failed visual proof: ${JSON.stringify(proof)}`);
+  }
+  for (const viewport of [
+    { width: 320, height: 240 },
+    { width: 1600, height: 1000 },
+  ]) {
+    const responsive = await measureResponsiveFrame(page, viewport.width, viewport.height);
+    const centered =
+      Math.abs(responsive.centerX - responsive.width / 2) <= responsive.width * 0.04 &&
+      Math.abs(responsive.centerY - responsive.height / 2) <= responsive.height * 0.08;
+    const scaled =
+      responsive.avatarWidth > Math.min(responsive.width, responsive.height) * 0.65 &&
+      responsive.avatarHeight > Math.min(responsive.width, responsive.height) * 0.65;
+    if (!centered || !scaled) {
+      throw new Error(`avatar did not remain centered and scaled: ${JSON.stringify(responsive)}`);
+    }
   }
   const readinessDeadline = Date.now() + 2_000;
   let hostSnapshot = host.snapshot();
