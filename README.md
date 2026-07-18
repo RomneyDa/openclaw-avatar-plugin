@@ -33,10 +33,22 @@ then issues an atomic clear so the mouth returns to neutral immediately.
 
 ## Live Gateway demo
 
-The live demo uses an owned local Gateway from an OpenClaw `demo/avatar-live` checkout, resolves the
-existing `openai:api-key` profile through OpenClaw's auth API, sends locally synthesized speech
-through `talk.session.create` and `talk.session.appendAudio`, and opens the plugin's authenticated
-Control UI route. It never calls OpenAI from the plugin or writes provider audio or credentials.
+The live demo uses an owned local Gateway from an OpenClaw `demo/avatar-live` checkout, sends
+locally synthesized speech through `talk.session.create` and `talk.session.appendAudio`, and opens
+the plugin's authenticated Control UI route. On macOS it first reads the dedicated Keychain item
+`openclaw-avatar-plugin` / `OPENAI_AVATAR_DEMO_API_KEY`; when that item is absent it falls back to
+the existing OpenClaw `openai:api-key` profile. It never calls OpenAI from the plugin or writes
+provider audio or credentials.
+
+Create or update the isolated Keychain item without putting the secret in shell history:
+
+```zsh
+read -s "avatar_key?Paste the full API key: "
+echo
+security add-generic-password -U -s openclaw-avatar-plugin \
+  -a OPENAI_AVATAR_DEMO_API_KEY -l "OpenClaw Avatar Demo API Key" -w "$avatar_key"
+unset avatar_key
+```
 
 ```bash
 OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live
@@ -48,11 +60,11 @@ Gateway-owned provider output with the exact PCM observed by the plugin renderer
 output, checks the new clear generation stays neutral, closes the renderer, and verifies provider
 audio continues.
 
-Live proof status (2026-07-17): the owned Gateway loaded the authenticated renderer and created the
-OpenAI Talk session, but OpenAI returned `quota_exceeded` before the session became ready. The live
-screenshots and JSON are therefore intentionally absent; `docs/evidence/avatar-demo.png` remains
-synthetic browser-smoke evidence. Restore quota for the existing `openai:api-key` profile and rerun
-the command above to produce the live artifacts. Do not substitute synthetic output for this proof.
+Live proof status (2026-07-18): passed with `gpt-realtime-2.1` through one Gateway-owned Talk
+session. The renderer matched an exact 153,600-byte provider PCM prefix (8 events and identical
+rolling hash), captured speaking and post-cancel listening frames, advanced clear generation 2 to
+3 without stale mouth motion, dropped no transport media, and observed another 19,200 provider
+bytes after the renderer disconnected. See `docs/evidence/live-proof.json` for metadata-only proof.
 
 ## Install in OpenClaw
 

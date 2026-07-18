@@ -7,15 +7,14 @@ and verifies the host accepted first-frame readiness.
 
 This is generated visual-test evidence, not a runtime character asset.
 
-On a successful `npm run demo:live`, the command produces `live-speaking.png`, `live-neutral.png`,
-and `live-proof.json`. The JSON contains only counters, generations, rolling byte digests, renderer
-state, and commit metadata; it does not contain PCM, transcripts, provider credentials, or renderer
-tokens.
+The checked-in `live-speaking.png`, `live-neutral.png`, and `live-proof.json` were produced by the
+2026-07-18 `npm run demo:live` run using `gpt-realtime-2.1` through a real Gateway-owned Talk
+session. The JSON proves an exact 153,600-byte PCM prefix by byte count and rolling digest, then
+records cancel/clear neutrality and provider continuation with the renderer absent. It contains
+only counters, generations, rolling byte digests, renderer state, and commit metadata; it does not
+contain PCM, transcripts, provider credentials, or renderer tokens.
 
-Those three live artifacts are intentionally absent from this commit. The 2026-07-17 run reached
-OpenAI through a real Gateway-owned `talk.session.create`, but the configured API-key account
-returned `quota_exceeded` before readiness and emitted no assistant audio. After quota is restored,
-rerun from the plugin checkout:
+To regenerate from the plugin checkout:
 
 ```bash
 OPENCLAW_CORE_PATH=/path/to/openclaw npm run demo:live

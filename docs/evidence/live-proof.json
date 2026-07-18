@@ -1,0 +1,90 @@
+{
+  "generatedAt": "2026-07-18T08:49:27.474Z",
+  "gatewayOwnedTalk": true,
+  "provider": {
+    "id": "openai",
+    "model": "gpt-realtime-2.1",
+    "voice": "alloy",
+    "assistantAudioReceived": true
+  },
+  "credentialSource": "dedicated-keychain",
+  "coreCommit": "0cce8f97ce9f82a828547fd6624898f263daeafa",
+  "pluginBaseCommit": "4987b6992a5bf46e4192baac5885b1a48ae54d19",
+  "input": {
+    "format": "pcm16le",
+    "sampleRateHz": 24000,
+    "channels": 1,
+    "firstTurnBytes": 254580
+  },
+  "exactOutputPcmPrefix": {
+    "provider": {
+      "events": 8,
+      "bytes": 153600,
+      "hash": "12bb5736107c633a"
+    },
+    "renderer": {
+      "generation": 2,
+      "state": "speaking",
+      "lastSequence": 7,
+      "receivedAudioEvents": 8,
+      "receivedAudioBytes": 153600,
+      "receivedAudioHash": "12bb5736107c633a",
+      "clearEvents": 1,
+      "renderedFrames": 998,
+      "audioLevel": 0.12328085113431025,
+      "audioTarget": 0.6921389999465187
+    },
+    "equal": true
+  },
+  "cancelClear": {
+    "generationBefore": 2,
+    "generationAfter": 3,
+    "clearEvents": 2,
+    "state": "listening",
+    "renderedFrames": 1766,
+    "audioBytesStableAfterMs": 1000,
+    "staleMouthMotionResumed": false
+  },
+  "rendererHost": {
+    "runningStandalone": false,
+    "port": null,
+    "connectedClients": 1,
+    "readyClients": 1,
+    "sentEvents": 79,
+    "sentAudioBytes": 1288800,
+    "droppedTransportMedia": 0,
+    "renderedFrames": 1685,
+    "firstFrameValidated": false,
+    "rendererError": null,
+    "session": {
+      "generation": 3,
+      "currentState": "listening",
+      "subscribers": 1,
+      "inputAudioBytes": 1288800,
+      "visemeFrames": 0,
+      "controlEvents": 11,
+      "deliveredEvents": 79,
+      "droppedMediaEvents": 0,
+      "droppedMediaBytes": 0,
+      "subscriberFailures": 0,
+      "queueDepth": 0,
+      "queuedMediaBytes": 0,
+      "active": true,
+      "sessionId": "f38be81d-7b45-48fb-9a84-c0295c9d95fa"
+    }
+  },
+  "rendererAbsent": {
+    "connectedClients": 0,
+    "providerAudioBytes": 19200,
+    "providerOutputContinued": true
+  },
+  "screenshots": [
+    "live-speaking.png",
+    "live-neutral.png"
+  ],
+  "privacy": {
+    "rawProviderPcmStored": false,
+    "credentialStored": false,
+    "transcriptStored": false
+  }
+}
