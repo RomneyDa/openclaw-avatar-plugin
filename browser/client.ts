@@ -287,7 +287,7 @@ function roundedRect(x: number, y: number, width: number, height: number, radius
 }
 
 function drawBackdrop(width: number, height: number): void {
-  context.fillStyle = "#f3f1eb";
+  context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width, height);
 }
 
@@ -295,83 +295,90 @@ function drawFace(cx: number, cy: number, scale: number): void {
   context.save();
   context.translate(cx, cy);
 
-  context.strokeStyle = "#ad5739";
-  context.lineWidth = 4 * scale;
-  context.lineCap = "round";
-  for (const side of [-1, 1]) {
-    context.beginPath();
-    context.moveTo(side * 72 * scale, -125 * scale);
-    context.quadraticCurveTo(side * 112 * scale, -181 * scale, side * 144 * scale, -205 * scale);
-    context.stroke();
-  }
+  const lobster = context.createLinearGradient(-50 * scale, -50 * scale, 50 * scale, 50 * scale);
+  lobster.addColorStop(0, "#ff4d4d");
+  lobster.addColorStop(1, "#991b1b");
 
-  context.fillStyle = "#cf6b43";
+  // Geometry follows the official openclaw.ai favicon; the animated mouth is the only addition.
+  context.fillStyle = lobster;
   context.beginPath();
-  context.moveTo(-78 * scale, -158 * scale);
-  context.bezierCurveTo(-128 * scale, -157 * scale, -155 * scale, -110 * scale, -158 * scale, -42 * scale);
-  context.bezierCurveTo(-162 * scale, 47 * scale, -132 * scale, 130 * scale, -74 * scale, 158 * scale);
-  context.bezierCurveTo(-35 * scale, 176 * scale, 35 * scale, 176 * scale, 74 * scale, 158 * scale);
-  context.bezierCurveTo(132 * scale, 130 * scale, 162 * scale, 47 * scale, 158 * scale, -42 * scale);
-  context.bezierCurveTo(155 * scale, -110 * scale, 128 * scale, -157 * scale, 78 * scale, -158 * scale);
-  context.quadraticCurveTo(0, -174 * scale, -78 * scale, -158 * scale);
+  context.moveTo(0, -50 * scale);
+  context.bezierCurveTo(-30 * scale, -50 * scale, -45 * scale, -25 * scale, -45 * scale, -5 * scale);
+  context.bezierCurveTo(-45 * scale, 15 * scale, -30 * scale, 35 * scale, -15 * scale, 40 * scale);
+  context.lineTo(-15 * scale, 50 * scale);
+  context.lineTo(-5 * scale, 50 * scale);
+  context.lineTo(-5 * scale, 40 * scale);
+  context.bezierCurveTo(-5 * scale, 40 * scale, 0, 42 * scale, 5 * scale, 40 * scale);
+  context.lineTo(5 * scale, 50 * scale);
+  context.lineTo(15 * scale, 50 * scale);
+  context.lineTo(15 * scale, 40 * scale);
+  context.bezierCurveTo(30 * scale, 35 * scale, 45 * scale, 15 * scale, 45 * scale, -5 * scale);
+  context.bezierCurveTo(45 * scale, -25 * scale, 30 * scale, -50 * scale, 0, -50 * scale);
   context.closePath();
   context.fill();
-  context.strokeStyle = "#a95135";
-  context.lineWidth = 3 * scale;
-  context.stroke();
 
-  context.strokeStyle = "rgba(255, 232, 210, 0.46)";
-  context.lineWidth = 2 * scale;
   context.beginPath();
-  context.moveTo(0, -148 * scale);
-  context.lineTo(0, -77 * scale);
+  context.moveTo(-40 * scale, -15 * scale);
+  context.bezierCurveTo(-55 * scale, -20 * scale, -60 * scale, -10 * scale, -55 * scale, 0);
+  context.bezierCurveTo(-50 * scale, 10 * scale, -40 * scale, 5 * scale, -35 * scale, -5 * scale);
+  context.bezierCurveTo(-32 * scale, -12 * scale, -35 * scale, -15 * scale, -40 * scale, -15 * scale);
+  context.closePath();
+  context.fill();
+
+  context.beginPath();
+  context.moveTo(40 * scale, -15 * scale);
+  context.bezierCurveTo(55 * scale, -20 * scale, 60 * scale, -10 * scale, 55 * scale, 0);
+  context.bezierCurveTo(50 * scale, 10 * scale, 40 * scale, 5 * scale, 35 * scale, -5 * scale);
+  context.bezierCurveTo(32 * scale, -12 * scale, 35 * scale, -15 * scale, 40 * scale, -15 * scale);
+  context.closePath();
+  context.fill();
+
+  context.strokeStyle = "#ff4d4d";
+  context.lineWidth = 3 * scale;
+  context.lineCap = "round";
+  context.beginPath();
+  context.moveTo(-15 * scale, -45 * scale);
+  context.quadraticCurveTo(-25 * scale, -55 * scale, -30 * scale, -52 * scale);
+  context.stroke();
+  context.beginPath();
+  context.moveTo(15 * scale, -45 * scale);
+  context.quadraticCurveTo(25 * scale, -55 * scale, 30 * scale, -52 * scale);
   context.stroke();
 
-  const eyeHeight = Math.max(1.5, (1 - blink) * 18) * scale;
-  const eyeColor =
-    state === "error"
-      ? "#a45d45"
-      : state === "thinking"
-        ? "#9a7b3f"
-        : state === "speaking"
-          ? "#3f756f"
-          : "#557068";
+  const eyeHeight = Math.max(0.8, (1 - blink) * 6) * scale;
   for (const side of [-1, 1]) {
-    context.strokeStyle = "#b95c3c";
-    context.lineWidth = 18 * scale;
+    context.fillStyle = "#050810";
     context.beginPath();
-    context.moveTo(side * 57 * scale, -70 * scale);
-    context.lineTo(side * 91 * scale, -101 * scale);
-    context.stroke();
-    context.fillStyle = "#f2d6bc";
-    context.beginPath();
-    context.arc(side * 98 * scale, -108 * scale, 31 * scale, 0, Math.PI * 2);
+    context.ellipse(side * 15 * scale, -25 * scale, 6 * scale, eyeHeight, 0, 0, Math.PI * 2);
     context.fill();
-    context.fillStyle = eyeColor;
-    roundedRect(
-      side * 98 * scale - 18 * scale,
-      -108 * scale - eyeHeight / 2,
-      36 * scale,
-      eyeHeight,
-      12 * scale,
+    context.fillStyle = state === "error" ? "#ffb09c" : "#00e5cc";
+    context.beginPath();
+    context.ellipse(
+      side * 15 * scale + 1 * scale,
+      -26 * scale,
+      2.5 * scale,
+      Math.max(0.4, eyeHeight * 0.42),
+      0,
+      0,
+      Math.PI * 2,
     );
     context.fill();
   }
 
   const mouthOpen = Math.min(1, audioLevel * 0.76 + visemeOpen * 0.74);
-  const mouthWidth = (76 + visemeWide * 28 - mouthOpen * 8) * scale;
-  const mouthHeight = (8 + mouthOpen * 50) * scale;
-  context.fillStyle = "#745445";
-  roundedRect(-mouthWidth / 2, 62 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
+  const mouthWidth = (13 + visemeWide * 5 - mouthOpen * 1.5) * scale;
+  const mouthHeight = (1.5 + mouthOpen * 10) * scale;
+  context.fillStyle = "#050810";
+  roundedRect(-mouthWidth / 2, -4 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
   context.fill();
   if (mouthOpen > 0.28) {
-    context.fillStyle = "#edb178";
+    context.fillStyle = "#00e5cc";
     roundedRect(
-      -mouthWidth * 0.3,
-      (65 + mouthOpen * 9) * scale,
-      mouthWidth * 0.6,
-      5 * scale,
-      3 * scale,
+      -mouthWidth * 0.28,
+      (-1 + mouthOpen * 2) * scale,
+      mouthWidth * 0.56,
+      1.4 * scale,
+      0.7 * scale,
     );
     context.fill();
   }
@@ -439,7 +446,7 @@ function draw(now: number, forced = false): void {
   }
 
   drawBackdrop(width, height);
-  const scale = Math.min(width / 650, height / 500);
+  const scale = Math.min(width / 140, height / 140);
   const float = Math.sin(now * 0.0012) * 3 * scale;
   const cx = width / 2;
   const cy = height / 2 + float;
