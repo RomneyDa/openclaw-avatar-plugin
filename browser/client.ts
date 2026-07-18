@@ -371,17 +371,6 @@ function drawFace(cx: number, cy: number, scale: number): void {
   context.fillStyle = "#050810";
   roundedRect(-mouthWidth / 2, -4 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
   context.fill();
-  if (mouthOpen > 0.28) {
-    context.fillStyle = "#00e5cc";
-    roundedRect(
-      -mouthWidth * 0.28,
-      (-1 + mouthOpen * 2) * scale,
-      mouthWidth * 0.56,
-      1.4 * scale,
-      0.7 * scale,
-    );
-    context.fill();
-  }
 
   context.restore();
 }
