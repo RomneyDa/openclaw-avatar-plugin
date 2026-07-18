@@ -26,6 +26,12 @@ type AvatarRendererProof = {
   audioTarget: number;
 };
 
+type AudioEnvelopeFrame = {
+  startPtsMs: number;
+  endPtsMs: number;
+  level: number;
+};
+
 const canvas = document.querySelector<HTMLCanvasElement>("#avatar")!;
 const context = canvas.getContext("2d", { alpha: false })!;
 const status = document.querySelector<HTMLElement>("#status")!;
@@ -43,6 +49,10 @@ let generation = 0;
 let lastSequence = -1;
 let audioLevel = 0;
 let audioTarget = 0;
+let audioClockOrigin: number | null = null;
+let audioEndPtsMs = 0;
+let audioEnvelope: AudioEnvelopeFrame[] = [];
+let pendingState: AvatarState | null = null;
 let visemeOpen = 0;
 let visemeWide = 0;
 let expressionPulse = 0;
@@ -98,6 +108,10 @@ function setState(next: AvatarState): void {
 function clearMouth(): void {
   audioLevel = 0;
   audioTarget = 0;
+  audioClockOrigin = null;
+  audioEndPtsMs = 0;
+  audioEnvelope = [];
+  pendingState = null;
   visemeOpen = 0;
   visemeWide = 0;
   expressionPulse = 0;
@@ -105,7 +119,23 @@ function clearMouth(): void {
   draw(performance.now(), true);
 }
 
-function decodePcmLevel(base64: string): number {
+function pcmLevel(binary: string, startSample: number, endSample: number): number {
+  if (endSample <= startSample) return 0;
+  let sum = 0;
+  let measured = 0;
+  for (let index = startSample; index < endSample; index += 2) {
+    const offset = index * 2;
+    let sample = binary.charCodeAt(offset) | (binary.charCodeAt(offset + 1) << 8);
+    if (sample >= 0x8000) sample -= 0x10000;
+    const normalized = sample / 32768;
+    sum += normalized * normalized;
+    measured += 1;
+  }
+  if (measured === 0) return 0;
+  return Math.min(1, Math.max(0, (Math.sqrt(sum / measured) - 0.008) * 8.5));
+}
+
+function decodePcmEnvelope(base64: string, ptsMs: number): AudioEnvelopeFrame[] {
   const binary = atob(base64);
   receivedAudioEvents += 1;
   receivedAudioBytes += binary.length;
@@ -114,16 +144,61 @@ function decodePcmLevel(base64: string): number {
     receivedAudioHash = BigInt.asUintN(64, receivedAudioHash * 0x100000001b3n);
   }
   const samples = Math.floor(binary.length / 2);
-  if (samples === 0) return 0;
-  let sum = 0;
-  for (let index = 0; index < samples; index += 2) {
-    const offset = index * 2;
-    let sample = binary.charCodeAt(offset) | (binary.charCodeAt(offset + 1) << 8);
-    if (sample >= 0x8000) sample -= 0x10000;
-    const normalized = sample / 32768;
-    sum += normalized * normalized;
+  const frames: AudioEnvelopeFrame[] = [];
+  const windowSamples = 480;
+  for (let start = 0; start < samples; start += windowSamples) {
+    const end = Math.min(samples, start + windowSamples);
+    frames.push({
+      startPtsMs: ptsMs + start / 24,
+      endPtsMs: ptsMs + end / 24,
+      level: pcmLevel(binary, start, end),
+    });
   }
-  return Math.min(1, Math.max(0, (Math.sqrt(sum / Math.ceil(samples / 2)) - 0.012) * 5.8));
+  return frames;
+}
+
+function queuePcmEnvelope(base64: string, ptsMs: number): void {
+  const frames = decodePcmEnvelope(base64, ptsMs);
+  if (frames.length === 0) return;
+  const now = performance.now();
+  const playbackPts = audioClockOrigin === null ? null : now - audioClockOrigin;
+  if (
+    audioClockOrigin === null ||
+    (audioEnvelope.length === 0 && playbackPts !== null && ptsMs > playbackPts + 100)
+  ) {
+    audioClockOrigin = now - ptsMs;
+  }
+  audioEnvelope.push(...frames);
+  audioEndPtsMs = Math.max(audioEndPtsMs, frames.at(-1)?.endPtsMs ?? ptsMs);
+}
+
+function hasScheduledAudio(now = performance.now()): boolean {
+  return (
+    audioClockOrigin !== null &&
+    (audioEnvelope.length > 0 || now - audioClockOrigin < audioEndPtsMs)
+  );
+}
+
+function advanceAudioEnvelope(now: number): boolean {
+  if (audioClockOrigin === null) return false;
+  const playbackPts = now - audioClockOrigin;
+  while (audioEnvelope[0] && audioEnvelope[0].endPtsMs <= playbackPts) {
+    audioEnvelope.shift();
+  }
+  const frame = audioEnvelope[0];
+  audioTarget = frame && frame.startPtsMs <= playbackPts ? frame.level : 0;
+  if (audioEnvelope.length === 0 && playbackPts >= audioEndPtsMs) {
+    audioClockOrigin = null;
+    audioEndPtsMs = 0;
+    audioTarget = 0;
+    if (pendingState) {
+      const nextState = pendingState;
+      pendingState = null;
+      setState(nextState);
+    }
+    return false;
+  }
+  return true;
 }
 
 function handleEvent(event: WireEvent): void {
@@ -158,7 +233,8 @@ function handleEvent(event: WireEvent): void {
     lastSequence = event.sequence;
   }
   if (event.type === "audio" && event.pcmBase64) {
-    audioTarget = decodePcmLevel(event.pcmBase64);
+    queuePcmEnvelope(event.pcmBase64, event.ptsMs ?? audioEndPtsMs);
+    pendingState = null;
     setState("speaking");
   } else if (event.type === "visemes" && event.weights) {
     const weights = event.weights;
@@ -168,7 +244,11 @@ function handleEvent(event: WireEvent): void {
     );
     visemeWide = Math.min(1, (weights.E ?? 0) + (weights.I ?? 0) * 0.8 + (weights.SS ?? 0) * 0.55);
   } else if (event.type === "state" && event.state) {
-    setState(event.state);
+    if (event.state !== "speaking" && hasScheduledAudio()) {
+      pendingState = event.state;
+    } else {
+      setState(event.state);
+    }
   } else if (event.type === "expression") {
     expressionTarget = Math.max(0, Math.min(1, event.intensity ?? 0));
   } else if (event.type === "session.end") {
@@ -461,8 +541,9 @@ function draw(now: number, forced = false): void {
   }
   const delta = Math.min(50, now - lastTime);
   lastTime = now;
+  const audioScheduled = advanceAudioEnvelope(now);
   audioLevel += (audioTarget - audioLevel) * Math.min(1, delta / 58);
-  audioTarget *= Math.pow(0.965, delta / 16.7);
+  if (!audioScheduled) audioTarget *= Math.pow(0.965, delta / 16.7);
   expressionPulse += (expressionTarget - expressionPulse) * Math.min(1, delta / 180);
   expressionTarget *= Math.pow(0.99, delta / 16.7);
 

@@ -75,6 +75,31 @@ try {
   }
   session.clear("barge-in");
   await page.waitForTimeout(50);
+  session.state("listening", 0);
+
+  for (let chunk = 0; chunk < 50; chunk += 1) {
+    const pcm = Buffer.alloc(samples * 2);
+    for (let index = 0; index < samples; index += 1) {
+      const time = (chunk * samples + index) / 24_000;
+      const value = Math.sin(2 * Math.PI * 142 * time) * (0.45 + 0.35 * Math.sin(2 * Math.PI * 4 * time));
+      pcm.writeInt16LE(Math.round(value * 28_000), index * 2);
+    }
+    session.audio(pcm, chunk * 20);
+  }
+  session.state("listening", 1_000);
+  await page.waitForTimeout(400);
+  const bufferedSpeaking = await page.evaluate(() => ({
+    status: document.querySelector("#status-label")?.textContent,
+    proof: globalThis.openclawAvatarProof,
+  }));
+  if (bufferedSpeaking.status !== "SPEAKING" || bufferedSpeaking.proof.audioLevel < 0.08) {
+    throw new Error(`buffered lip sync ended before scheduled audio: ${JSON.stringify(bufferedSpeaking)}`);
+  }
+  await page.waitForTimeout(750);
+  const drainedStatus = await page.locator("#status-label").textContent();
+  if (drainedStatus !== "LISTENING") {
+    throw new Error(`buffered lip sync did not apply pending state: ${drainedStatus}`);
+  }
   console.log(`browser smoke passed: ${JSON.stringify({ ...proof, output })}`);
 } finally {
   await browser.close();
