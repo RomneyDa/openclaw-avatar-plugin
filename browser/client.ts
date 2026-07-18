@@ -295,24 +295,37 @@ function drawFace(cx: number, cy: number, scale: number): void {
   context.save();
   context.translate(cx, cy);
 
-  const shell = context.createLinearGradient(-120 * scale, -150 * scale, 130 * scale, 160 * scale);
-  shell.addColorStop(0, "#fffefa");
-  shell.addColorStop(1, "#e6e1d7");
-  context.fillStyle = shell;
-  context.shadowColor = "rgba(81, 75, 64, 0.16)";
-  context.shadowBlur = 38 * scale;
-  context.shadowOffsetY = 15 * scale;
-  roundedRect(-151 * scale, -164 * scale, 302 * scale, 328 * scale, 120 * scale);
+  context.strokeStyle = "#ad5739";
+  context.lineWidth = 4 * scale;
+  context.lineCap = "round";
+  for (const side of [-1, 1]) {
+    context.beginPath();
+    context.moveTo(side * 72 * scale, -125 * scale);
+    context.quadraticCurveTo(side * 112 * scale, -181 * scale, side * 144 * scale, -205 * scale);
+    context.stroke();
+  }
+
+  context.fillStyle = "#cf6b43";
+  context.beginPath();
+  context.moveTo(-78 * scale, -158 * scale);
+  context.bezierCurveTo(-128 * scale, -157 * scale, -155 * scale, -110 * scale, -158 * scale, -42 * scale);
+  context.bezierCurveTo(-162 * scale, 47 * scale, -132 * scale, 130 * scale, -74 * scale, 158 * scale);
+  context.bezierCurveTo(-35 * scale, 176 * scale, 35 * scale, 176 * scale, 74 * scale, 158 * scale);
+  context.bezierCurveTo(132 * scale, 130 * scale, 162 * scale, 47 * scale, 158 * scale, -42 * scale);
+  context.bezierCurveTo(155 * scale, -110 * scale, 128 * scale, -157 * scale, 78 * scale, -158 * scale);
+  context.quadraticCurveTo(0, -174 * scale, -78 * scale, -158 * scale);
+  context.closePath();
   context.fill();
-  context.shadowBlur = 0;
-  context.shadowOffsetY = 0;
-  context.strokeStyle = "#cbc5b9";
-  context.lineWidth = 2.5 * scale;
+  context.strokeStyle = "#a95135";
+  context.lineWidth = 3 * scale;
   context.stroke();
 
-  context.fillStyle = "#d8d3c9";
-  roundedRect(-116 * scale, -67 * scale, 232 * scale, 104 * scale, 50 * scale);
-  context.fill();
+  context.strokeStyle = "rgba(255, 232, 210, 0.46)";
+  context.lineWidth = 2 * scale;
+  context.beginPath();
+  context.moveTo(0, -148 * scale);
+  context.lineTo(0, -77 * scale);
+  context.stroke();
 
   const eyeHeight = Math.max(1.5, (1 - blink) * 18) * scale;
   const eyeColor =
@@ -324,11 +337,21 @@ function drawFace(cx: number, cy: number, scale: number): void {
           ? "#3f756f"
           : "#557068";
   for (const side of [-1, 1]) {
+    context.strokeStyle = "#b95c3c";
+    context.lineWidth = 18 * scale;
+    context.beginPath();
+    context.moveTo(side * 57 * scale, -70 * scale);
+    context.lineTo(side * 91 * scale, -101 * scale);
+    context.stroke();
+    context.fillStyle = "#f2d6bc";
+    context.beginPath();
+    context.arc(side * 98 * scale, -108 * scale, 31 * scale, 0, Math.PI * 2);
+    context.fill();
     context.fillStyle = eyeColor;
     roundedRect(
-      side * 53 * scale - 26 * scale,
-      -17 * scale - eyeHeight / 2,
-      52 * scale,
+      side * 98 * scale - 18 * scale,
+      -108 * scale - eyeHeight / 2,
+      36 * scale,
       eyeHeight,
       12 * scale,
     );
@@ -336,16 +359,16 @@ function drawFace(cx: number, cy: number, scale: number): void {
   }
 
   const mouthOpen = Math.min(1, audioLevel * 0.76 + visemeOpen * 0.74);
-  const mouthWidth = (72 + visemeWide * 28 - mouthOpen * 8) * scale;
-  const mouthHeight = (7 + mouthOpen * 48) * scale;
-  context.fillStyle = "#6e655d";
-  roundedRect(-mouthWidth / 2, 70 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
+  const mouthWidth = (76 + visemeWide * 28 - mouthOpen * 8) * scale;
+  const mouthHeight = (8 + mouthOpen * 50) * scale;
+  context.fillStyle = "#745445";
+  roundedRect(-mouthWidth / 2, 62 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
   context.fill();
   if (mouthOpen > 0.28) {
-    context.fillStyle = "#d2a06d";
+    context.fillStyle = "#edb178";
     roundedRect(
       -mouthWidth * 0.3,
-      (73 + mouthOpen * 9) * scale,
+      (65 + mouthOpen * 9) * scale,
       mouthWidth * 0.6,
       5 * scale,
       3 * scale,
