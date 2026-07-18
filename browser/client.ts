@@ -286,217 +286,73 @@ function roundedRect(x: number, y: number, width: number, height: number, radius
   context.roundRect(x, y, width, height, radius);
 }
 
-function glowCircle(x: number, y: number, radius: number, color: string, alpha: number): void {
-  const gradient = context.createRadialGradient(x, y, 0, x, y, radius);
-  gradient.addColorStop(0, color.replace("ALPHA", String(alpha)));
-  gradient.addColorStop(1, color.replace("ALPHA", "0"));
-  context.fillStyle = gradient;
-  context.fillRect(x - radius, y - radius, radius * 2, radius * 2);
-}
-
-function drawBackdrop(width: number, height: number, time: number): void {
-  const background = context.createLinearGradient(0, 0, width, height);
-  background.addColorStop(0, "#08091a");
-  background.addColorStop(0.52, "#0f0b24");
-  background.addColorStop(1, "#07141d");
-  context.fillStyle = background;
+function drawBackdrop(width: number, height: number): void {
+  context.fillStyle = "#f3f1eb";
   context.fillRect(0, 0, width, height);
-  glowCircle(width * 0.23, height * 0.32, width * 0.34, "rgba(87,77,255,ALPHA)", 0.19);
-  glowCircle(width * 0.78, height * 0.66, width * 0.32, "rgba(255,82,114,ALPHA)", 0.14);
-  context.save();
-  context.globalAlpha = 0.13;
-  context.strokeStyle = "#9a8cff";
-  context.lineWidth = 1;
-  const spacing = Math.max(42, width / 24);
-  const shift = (time * 0.006) % spacing;
-  for (let x = -height; x < width + height; x += spacing) {
-    context.beginPath();
-    context.moveTo(x + shift, 0);
-    context.lineTo(x - height + shift, height);
-    context.stroke();
-  }
-  context.restore();
 }
 
-function drawOrbit(cx: number, cy: number, scale: number, time: number): void {
-  context.save();
-  context.translate(cx, cy);
-  context.rotate(Math.sin(time * 0.0002) * 0.07);
-  context.strokeStyle = state === "error" ? "#ff476f66" : state === "listening" ? "#63efd066" : "#927cff50";
-  context.lineWidth = 2 * scale;
-  context.setLineDash([8 * scale, 14 * scale]);
-  context.lineDashOffset = -time * 0.015;
-  context.beginPath();
-  context.ellipse(0, 0, 252 * scale, 220 * scale, -0.18, 0, Math.PI * 2);
-  context.stroke();
-  context.setLineDash([]);
-  for (let index = 0; index < 3; index += 1) {
-    const angle = time * 0.00025 * (index % 2 ? -1 : 1) + index * 2.1;
-    const x = Math.cos(angle) * 248 * scale;
-    const y = Math.sin(angle) * 216 * scale;
-    context.fillStyle = index === 1 ? "#6ff3d2" : "#ff7580";
-    context.shadowColor = context.fillStyle;
-    context.shadowBlur = 16 * scale;
-    context.beginPath();
-    context.arc(x, y, 4.5 * scale, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.restore();
-}
-
-function drawClaw(side: -1 | 1, cx: number, cy: number, scale: number, motion: number): void {
-  context.save();
-  context.translate(cx + side * 177 * scale, cy + 47 * scale + motion * 4 * scale);
-  context.scale(side, 1);
-  context.rotate(-0.1 - motion * 0.025);
-  const gradient = context.createLinearGradient(-30 * scale, -60 * scale, 65 * scale, 70 * scale);
-  gradient.addColorStop(0, "#ff9c7c");
-  gradient.addColorStop(0.5, "#f35f70");
-  gradient.addColorStop(1, "#a92c63");
-  context.fillStyle = gradient;
-  context.shadowColor = "#ff506966";
-  context.shadowBlur = 30 * scale;
-  context.beginPath();
-  context.moveTo(-25 * scale, 54 * scale);
-  context.bezierCurveTo(-61 * scale, 22 * scale, -56 * scale, -32 * scale, -18 * scale, -56 * scale);
-  context.bezierCurveTo(9 * scale, -73 * scale, 33 * scale, -51 * scale, 21 * scale, -25 * scale);
-  context.bezierCurveTo(49 * scale, -54 * scale, 80 * scale, -34 * scale, 68 * scale, -4 * scale);
-  context.bezierCurveTo(54 * scale, 33 * scale, 17 * scale, 59 * scale, -25 * scale, 54 * scale);
-  context.fill();
-  context.shadowBlur = 0;
-  context.strokeStyle = "#ffd0ba66";
-  context.lineWidth = 2 * scale;
-  context.beginPath();
-  context.moveTo(18 * scale, -24 * scale);
-  context.quadraticCurveTo(31 * scale, -5 * scale, 12 * scale, 15 * scale);
-  context.stroke();
-  context.restore();
-}
-
-function drawFace(cx: number, cy: number, scale: number, time: number): void {
-  const pulse = state === "speaking" ? audioLevel : state === "thinking" ? 0.3 + Math.sin(time * 0.004) * 0.15 : 0;
+function drawFace(cx: number, cy: number, scale: number): void {
   context.save();
   context.translate(cx, cy);
 
-  context.strokeStyle = "#e56f7866";
-  context.lineWidth = 4 * scale;
-  context.lineCap = "round";
-  for (const side of [-1, 1]) {
-    context.beginPath();
-    context.moveTo(side * 72 * scale, -126 * scale);
-    context.quadraticCurveTo(side * 104 * scale, -182 * scale, side * 132 * scale, -194 * scale);
-    context.stroke();
-    context.fillStyle = side === -1 ? "#6ff3d2" : "#ff7981";
-    context.shadowColor = context.fillStyle;
-    context.shadowBlur = 18 * scale;
-    context.beginPath();
-    context.arc(side * 134 * scale, -196 * scale, 7 * scale, 0, Math.PI * 2);
-    context.fill();
-  }
-  context.shadowBlur = 0;
-
-  const shell = context.createLinearGradient(-120 * scale, -140 * scale, 140 * scale, 150 * scale);
-  shell.addColorStop(0, "#2d315d");
-  shell.addColorStop(0.48, "#171a3a");
-  shell.addColorStop(1, "#0d1027");
+  const shell = context.createLinearGradient(-120 * scale, -150 * scale, 130 * scale, 160 * scale);
+  shell.addColorStop(0, "#fffefa");
+  shell.addColorStop(1, "#e6e1d7");
   context.fillStyle = shell;
-  context.shadowColor = "#000a";
-  context.shadowBlur = 54 * scale;
-  roundedRect(-139 * scale, -145 * scale, 278 * scale, 292 * scale, 106 * scale);
+  context.shadowColor = "rgba(81, 75, 64, 0.16)";
+  context.shadowBlur = 38 * scale;
+  context.shadowOffsetY = 15 * scale;
+  roundedRect(-151 * scale, -164 * scale, 302 * scale, 328 * scale, 120 * scale);
   context.fill();
   context.shadowBlur = 0;
-  context.strokeStyle = "#ffffff1c";
-  context.lineWidth = 2 * scale;
+  context.shadowOffsetY = 0;
+  context.strokeStyle = "#cbc5b9";
+  context.lineWidth = 2.5 * scale;
   context.stroke();
 
-  const crown = context.createLinearGradient(0, -146 * scale, 0, -55 * scale);
-  crown.addColorStop(0, "#ff817d");
-  crown.addColorStop(1, "#bd396b");
-  context.fillStyle = crown;
-  context.beginPath();
-  context.moveTo(-88 * scale, -124 * scale);
-  context.quadraticCurveTo(-54 * scale, -167 * scale, 0, -145 * scale);
-  context.quadraticCurveTo(54 * scale, -167 * scale, 88 * scale, -124 * scale);
-  context.quadraticCurveTo(50 * scale, -99 * scale, 0, -108 * scale);
-  context.quadraticCurveTo(-50 * scale, -99 * scale, -88 * scale, -124 * scale);
+  context.fillStyle = "#d8d3c9";
+  roundedRect(-116 * scale, -67 * scale, 232 * scale, 104 * scale, 50 * scale);
   context.fill();
-
-  const visor = context.createLinearGradient(-92 * scale, -50 * scale, 92 * scale, 30 * scale);
-  visor.addColorStop(0, "#10152c");
-  visor.addColorStop(0.5, "#202954");
-  visor.addColorStop(1, "#10152c");
-  context.fillStyle = visor;
-  context.shadowColor = state === "error" ? "#ff476f66" : "#6ff3d244";
-  context.shadowBlur = (10 + pulse * 20) * scale;
-  roundedRect(-103 * scale, -58 * scale, 206 * scale, 91 * scale, 42 * scale);
-  context.fill();
-  context.shadowBlur = 0;
-  context.strokeStyle = state === "error" ? "#ff5d7b" : "#74ddcf80";
-  context.lineWidth = 2 * scale;
-  context.stroke();
 
   const eyeHeight = Math.max(1.5, (1 - blink) * 18) * scale;
+  const eyeColor =
+    state === "error"
+      ? "#a45d45"
+      : state === "thinking"
+        ? "#9a7b3f"
+        : state === "speaking"
+          ? "#3f756f"
+          : "#557068";
   for (const side of [-1, 1]) {
-    context.fillStyle = state === "error" ? "#ff5c78" : "#d8fff8";
-    context.shadowColor = context.fillStyle;
-    context.shadowBlur = 14 * scale;
-    roundedRect(side * 49 * scale - 25 * scale, -22 * scale - eyeHeight / 2, 50 * scale, eyeHeight, 12 * scale);
+    context.fillStyle = eyeColor;
+    roundedRect(
+      side * 53 * scale - 26 * scale,
+      -17 * scale - eyeHeight / 2,
+      52 * scale,
+      eyeHeight,
+      12 * scale,
+    );
     context.fill();
   }
-  context.shadowBlur = 0;
 
   const mouthOpen = Math.min(1, audioLevel * 0.76 + visemeOpen * 0.74);
-  const mouthWidth = (66 + visemeWide * 28 - mouthOpen * 7) * scale;
-  const mouthHeight = (8 + mouthOpen * 43) * scale;
-  context.fillStyle = "#090916";
-  context.shadowColor = "#ff617c88";
-  context.shadowBlur = (8 + mouthOpen * 25) * scale;
-  roundedRect(-mouthWidth / 2, 66 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
+  const mouthWidth = (72 + visemeWide * 28 - mouthOpen * 8) * scale;
+  const mouthHeight = (7 + mouthOpen * 48) * scale;
+  context.fillStyle = "#6e655d";
+  roundedRect(-mouthWidth / 2, 70 * scale - mouthHeight / 2, mouthWidth, mouthHeight, mouthHeight / 2);
   context.fill();
-  context.shadowBlur = 0;
-  context.strokeStyle = "#ff8394aa";
-  context.lineWidth = 2 * scale;
-  context.stroke();
   if (mouthOpen > 0.28) {
-    context.fillStyle = "#ff7386";
-    roundedRect(-mouthWidth * 0.3, (69 + mouthOpen * 8) * scale, mouthWidth * 0.6, 5 * scale, 3 * scale);
+    context.fillStyle = "#d2a06d";
+    roundedRect(
+      -mouthWidth * 0.3,
+      (73 + mouthOpen * 9) * scale,
+      mouthWidth * 0.6,
+      5 * scale,
+      3 * scale,
+    );
     context.fill();
   }
 
-  context.strokeStyle = "#ffffff12";
-  context.lineWidth = 2 * scale;
-  context.beginPath();
-  context.arc(0, 0, 121 * scale, -2.6, -0.55);
-  context.stroke();
-  context.restore();
-}
-
-function drawStateGlyph(cx: number, cy: number, scale: number, time: number): void {
-  context.save();
-  context.translate(cx, cy);
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-  context.font = `700 ${13 * scale}px ui-sans-serif, system-ui`;
-  context.letterSpacing = `${2.2 * scale}px`;
-  context.fillStyle = "#d9d7f2";
-  const label = stateLabels[state];
-  const width = context.measureText(label).width + 40 * scale;
-  context.fillStyle = "#101329cc";
-  roundedRect(-width / 2, -17 * scale, width, 34 * scale, 17 * scale);
-  context.fill();
-  context.strokeStyle = "#ffffff18";
-  context.stroke();
-  context.fillStyle = state === "error" ? "#ff7990" : state === "listening" ? "#7ef1d6" : "#e6e3ff";
-  context.fillText(label, 1 * scale, 1 * scale);
-  if (state === "thinking") {
-    for (let index = 0; index < 3; index += 1) {
-      const phase = (time * 0.004 + index * 1.2) % 3.6;
-      context.globalAlpha = 0.25 + Math.max(0, Math.sin(phase)) * 0.75;
-      context.beginPath();
-      context.arc((index - 1) * 14 * scale, 36 * scale, 3 * scale, 0, Math.PI * 2);
-      context.fill();
-    }
-  }
   context.restore();
 }
 
@@ -559,16 +415,12 @@ function draw(now: number, forced = false): void {
     }
   }
 
-  drawBackdrop(width, height, now);
-  const scale = Math.min(width / 900, height / 620);
-  const float = Math.sin(now * 0.0012) * 7 * scale;
+  drawBackdrop(width, height);
+  const scale = Math.min(width / 650, height / 500);
+  const float = Math.sin(now * 0.0012) * 3 * scale;
   const cx = width / 2;
-  const cy = height / 2 + 10 * scale + float;
-  drawOrbit(cx, cy, scale, now);
-  drawClaw(-1, cx, cy, scale, Math.sin(now * 0.0015));
-  drawClaw(1, cx, cy, scale, Math.sin(now * 0.0015));
-  drawFace(cx, cy, scale, now);
-  drawStateGlyph(cx, cy + 202 * scale, scale, now);
+  const cy = height / 2 + float;
+  drawFace(cx, cy, scale);
   renderedFrames += 1;
 
   if (!firstFrameReported && renderedFrames >= 2) {
