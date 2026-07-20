@@ -44,6 +44,7 @@ type OpenClawOutputMediaEvent =
 type OpenClawRuntimeWithOptionalMedia = {
   talk?: {
     subscribeOutputMedia?: (params: {
+      scope?: "all";
       sessionId?: string;
       sessionKey?: string;
       onEvent: (event: OpenClawOutputMediaEvent) => void | Promise<void>;
@@ -73,8 +74,12 @@ export function attachOpenClawOutputMedia(
 
   let activeSessionId: string | null = null;
   const detach = subscribe({
-    ...(options.sessionId ? { sessionId: options.sessionId } : {}),
-    ...(options.sessionKey ? { sessionKey: options.sessionKey } : {}),
+    ...(options.sessionId || options.sessionKey
+      ? {
+          ...(options.sessionId ? { sessionId: options.sessionId } : {}),
+          ...(options.sessionKey ? { sessionKey: options.sessionKey } : {}),
+        }
+      : { scope: "all" as const }),
     onEvent: (event) => {
       if (event.type === "session.start") {
         if (activeSessionId && activeSessionId !== event.sessionId) {

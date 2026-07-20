@@ -182,11 +182,14 @@ The plugin feature-detects this runtime shape and otherwise stays in local-idle 
 
 ```ts
 api.runtime.talk.subscribeOutputMedia({
-  sessionId?: string,
-  sessionKey?: string,
+  scope: "all",
   onEvent(event): void | Promise<void>
 }): () => void
 ```
+
+The avatar intentionally opts into all Gateway-owned Talk sessions. Other consumers can provide a
+`sessionId` or `sessionKey` instead; omitting both a selector and explicit `scope: "all"` is
+rejected.
 
 The source events are provider-neutral:
 

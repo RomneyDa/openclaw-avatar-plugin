@@ -16,10 +16,12 @@ describe("OpenClaw output-media adapter", () => {
 
   it("maps provider-neutral core events without changing PCM or generations", async () => {
     let onEvent!: (event: any) => void;
+    let subscriptionScope: string | undefined;
     const detach = vi.fn();
     const runtime = {
       talk: {
-        subscribeOutputMedia: (params: { onEvent: typeof onEvent }) => {
+        subscribeOutputMedia: (params: { scope?: string; onEvent: typeof onEvent }) => {
+          subscriptionScope = params.scope;
           onEvent = params.onEvent;
           return detach;
         },
@@ -48,6 +50,7 @@ describe("OpenClaw output-media adapter", () => {
     expect(audio).toMatchObject({ generation: 4, sequence: 9, ptsMs: 20 });
     expect(audio?.pcm).toBe(pcm);
     expect(received.find((event) => event.type === "clear")).toMatchObject({ generation: 5, reason: "barge-in" });
+    expect(subscriptionScope).toBe("all");
     stop?.();
     expect(detach).toHaveBeenCalledOnce();
   });
