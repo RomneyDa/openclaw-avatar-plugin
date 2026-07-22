@@ -45,6 +45,7 @@ export function attachOpenClawActivity(options: OpenClawActivityAdapterOptions):
 
   const stop = watch((event) => {
     if (options.isSuppressed?.()) return;
+    if (event.type === "ended" && activeId !== event.activityId) return;
     ensureSession(event);
     const ptsMs = Math.max(0, (Date.parse(event.timestamp) || Date.now()) - startedAt);
     if (event.type === "state") {

@@ -67,6 +67,13 @@ describe("OpenClaw activity adapter", () => {
     expect(received.some((event) => event.type === "state" && event.state === "speaking")).toBe(true);
     await vi.waitFor(() => expect(received.some((event) => event.type === "session.end")).toBe(true));
     expect(received.at(-1)?.type).toBe("session.end");
+    const eventCount = received.length;
+    onEvent({
+      type: "ended",
+      activityId: "suppressed-interactive-session",
+      timestamp: "2026-07-22T00:00:00.060Z",
+    });
+    expect(received).toHaveLength(eventCount);
     stop?.();
     expect(detach).toHaveBeenCalledOnce();
   });
