@@ -1,121 +1,67 @@
-import type { AvatarClearReason, AvatarState } from "./events.js";
 import type { AvatarSession } from "./session.js";
 
-type OpenClawOutputMediaEvent =
-  | {
-      type: "session.start";
-      sessionId: string;
-      sessionKey?: string;
-      generation: number;
-      audio: { encoding: "pcm16le"; sampleRateHz: 24_000; channels: 1 };
-    }
+type OpenClawActivityEvent =
+  | { type: "started"; activityId: string; timestamp: string }
   | {
       type: "state";
-      sessionId: string;
-      sessionKey?: string;
-      generation: number;
-      ptsMs: number;
-      state: AvatarState;
+      activityId: string;
+      timestamp: string;
+      state: "idle" | "listening" | "thinking" | "speaking" | "error";
     }
-  | {
-      type: "audio";
-      sessionId: string;
-      sessionKey?: string;
-      generation: number;
-      sequence: number;
-      ptsMs: number;
-      pcm: Uint8Array;
-    }
-  | {
-      type: "clear";
-      sessionId: string;
-      sessionKey?: string;
-      generation: number;
-      reason: AvatarClearReason;
-    }
-  | {
-      type: "session.end";
-      sessionId: string;
-      sessionKey?: string;
-      generation: number;
-      reason: "completed" | "error" | "replaced";
-    };
+  | { type: "speech"; activityId: string; timestamp: string }
+  | { type: "ended"; activityId: string; timestamp: string };
 
-type OpenClawRuntimeWithOptionalMedia = {
+type OpenClawRuntimeWithActivity = {
   talk?: {
-    subscribeOutputMedia?: (params: {
-      scope?: "all";
-      sessionId?: string;
-      sessionKey?: string;
-      onEvent: (event: OpenClawOutputMediaEvent) => void | Promise<void>;
-    }) => () => void;
+    watchActivity?: (listener: (event: OpenClawActivityEvent) => void | Promise<void>) => () => void;
   };
 };
 
-export type OpenClawOutputMediaAdapterOptions = {
+export type OpenClawActivityAdapterOptions = {
   runtime: unknown;
   session: AvatarSession;
   video: { width: number; height: number; frameRate: number };
-  sessionId?: string;
-  sessionKey?: string;
+  isSuppressed?: () => boolean;
 };
 
-/**
- * Feature-detected adapter for OpenClaw's provider-neutral Talk output tap.
- * The adapter maps generations and exact PCM only; it never sees auth/provider
- * configuration and remains absent on hosts that predate the runtime seam.
- */
-export function attachOpenClawOutputMedia(
-  options: OpenClawOutputMediaAdapterOptions,
-): (() => void) | null {
-  const runtime = options.runtime as OpenClawRuntimeWithOptionalMedia;
-  const subscribe = runtime.talk?.subscribeOutputMedia;
-  if (typeof subscribe !== "function") return null;
+export function attachOpenClawActivity(options: OpenClawActivityAdapterOptions): (() => void) | null {
+  const watch = (options.runtime as OpenClawRuntimeWithActivity).talk?.watchActivity;
+  if (typeof watch !== "function") return null;
 
-  let activeSessionId: string | null = null;
-  const detach = subscribe({
-    ...(options.sessionId || options.sessionKey
-      ? {
-          ...(options.sessionId ? { sessionId: options.sessionId } : {}),
-          ...(options.sessionKey ? { sessionKey: options.sessionKey } : {}),
-        }
-      : { scope: "all" as const }),
-    onEvent: (event) => {
-      if (event.type === "session.start") {
-        if (activeSessionId && activeSessionId !== event.sessionId) {
-          options.session.end("replaced");
-        }
-        if (activeSessionId !== event.sessionId) {
-          activeSessionId = event.sessionId;
-          options.session.start({
-            sessionId: event.sessionId,
-            generation: event.generation,
-            video: options.video,
-          });
-        }
-        return;
-      }
-      if (event.sessionId !== activeSessionId) return;
-      if (event.type === "state") {
-        options.session.stateFromSource(event.state, event.ptsMs, event.generation);
-      } else if (event.type === "audio") {
-        options.session.audioFromSource({
-          pcm: event.pcm,
-          ptsMs: event.ptsMs,
-          generation: event.generation,
-          sequence: event.sequence,
-        });
-      } else if (event.type === "clear") {
-        options.session.clearFromSource(event.reason, event.generation);
-      } else if (event.type === "session.end") {
-        options.session.endFromSource(event.reason, event.generation);
-        activeSessionId = null;
-      }
-    },
+  let activeId: string | null = null;
+  let startedAt = 0;
+  let pulse = 0;
+  const ensureSession = (event: OpenClawActivityEvent) => {
+    if (activeId === event.activityId && options.session.snapshot().active) return;
+    if (options.session.snapshot().active) options.session.end("activity-replaced");
+    activeId = event.activityId;
+    startedAt = Date.parse(event.timestamp) || Date.now();
+    pulse = 0;
+    options.session.start({
+      sessionId: `activity:${event.activityId}`,
+      video: options.video,
+    });
+  };
+
+  const stop = watch((event) => {
+    if (options.isSuppressed?.()) return;
+    ensureSession(event);
+    const ptsMs = Math.max(0, (Date.parse(event.timestamp) || Date.now()) - startedAt);
+    if (event.type === "state") {
+      options.session.state(event.state, ptsMs);
+    } else if (event.type === "speech") {
+      pulse += 1;
+      options.session.state("speaking", ptsMs);
+      options.session.visemes(pulse % 2 === 0 ? { aa: 0.9, E: 0.15 } : { aa: 0.35, O: 0.55 }, ptsMs);
+    } else if (event.type === "ended" && activeId === event.activityId) {
+      options.session.end("activity-ended");
+      activeId = null;
+    }
   });
+
   return () => {
-    detach();
-    if (activeSessionId) options.session.end("adapter-detached");
-    activeSessionId = null;
+    stop();
+    if (activeId && options.session.snapshot().active) options.session.end("adapter-detached");
+    activeId = null;
   };
 }

@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AvatarEvent } from "../src/events.js";
-import { attachOpenClawOutputMedia } from "../src/openclaw-adapter.js";
+import { attachOpenClawActivity } from "../src/openclaw-adapter.js";
 import { AvatarSession } from "../src/session.js";
 
-describe("OpenClaw output-media adapter", () => {
+describe("OpenClaw activity adapter", () => {
   it("feature-detects stock hosts without disabling the renderer", () => {
     expect(
-      attachOpenClawOutputMedia({
+      attachOpenClawActivity({
         runtime: {},
         session: new AvatarSession(),
         video: { width: 1280, height: 720, frameRate: 30 },
@@ -14,15 +14,13 @@ describe("OpenClaw output-media adapter", () => {
     ).toBeNull();
   });
 
-  it("maps provider-neutral core events without changing PCM or generations", async () => {
+  it("maps anonymous Talk activity to state and viseme motion", async () => {
     let onEvent!: (event: any) => void;
-    let subscriptionScope: string | undefined;
     const detach = vi.fn();
     const runtime = {
       talk: {
-        subscribeOutputMedia: (params: { scope?: string; onEvent: typeof onEvent }) => {
-          subscriptionScope = params.scope;
-          onEvent = params.onEvent;
+        watchActivity: (listener: typeof onEvent) => {
+          onEvent = listener;
           return detach;
         },
       },
@@ -32,25 +30,43 @@ describe("OpenClaw output-media adapter", () => {
     session.subscribe("test", (event) => {
       received.push(event);
     });
-    const stop = attachOpenClawOutputMedia({
+    const stop = attachOpenClawActivity({
       runtime,
       session,
       video: { width: 960, height: 540, frameRate: 30 },
     });
-    const pcm = new Uint8Array([0, 128, 255, 127]);
-    onEvent({ type: "session.start", sessionId: "voice", generation: 4, audio: { encoding: "pcm16le", sampleRateHz: 24000, channels: 1 } });
-    onEvent({ type: "state", sessionId: "voice", generation: 4, ptsMs: 0, state: "thinking" });
-    onEvent({ type: "audio", sessionId: "voice", generation: 4, sequence: 9, ptsMs: 20, pcm });
-    await vi.waitFor(() => expect(received.some((event) => event.type === "audio")).toBe(true));
-    onEvent({ type: "clear", sessionId: "voice", generation: 5, reason: "barge-in" });
-    onEvent({ type: "session.end", sessionId: "voice", generation: 5, reason: "completed" });
+
+    onEvent({
+      type: "started",
+      activityId: "opaque",
+      timestamp: "2026-07-22T00:00:00Z",
+    });
+    onEvent({
+      type: "state",
+      activityId: "opaque",
+      timestamp: "2026-07-22T00:00:00Z",
+      state: "thinking",
+    });
+    onEvent({
+      type: "speech",
+      activityId: "opaque",
+      timestamp: "2026-07-22T00:00:00.020Z",
+    });
+    await vi.waitFor(() => expect(received.some((event) => event.type === "visemes")).toBe(true));
+    onEvent({
+      type: "ended",
+      activityId: "opaque",
+      timestamp: "2026-07-22T00:00:00.040Z",
+    });
+
+    expect(received[0]).toMatchObject({
+      type: "session.start",
+      sessionId: "activity:opaque",
+      video: { width: 960, height: 540 },
+    });
+    expect(received.some((event) => event.type === "state" && event.state === "speaking")).toBe(true);
     await vi.waitFor(() => expect(received.some((event) => event.type === "session.end")).toBe(true));
-    expect(received[0]).toMatchObject({ type: "session.start", generation: 4, video: { width: 960, height: 540 } });
-    const audio = received.find((event): event is Extract<AvatarEvent, { type: "audio" }> => event.type === "audio");
-    expect(audio).toMatchObject({ generation: 4, sequence: 9, ptsMs: 20 });
-    expect(audio?.pcm).toBe(pcm);
-    expect(received.find((event) => event.type === "clear")).toMatchObject({ generation: 5, reason: "barge-in" });
-    expect(subscriptionScope).toBe("all");
+    expect(received.at(-1)?.type).toBe("session.end");
     stop?.();
     expect(detach).toHaveBeenCalledOnce();
   });

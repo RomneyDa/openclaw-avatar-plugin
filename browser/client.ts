@@ -45,13 +45,11 @@ const errorBox = document.querySelector<HTMLElement>("#error")!;
 const talkToggle = document.querySelector<HTMLInputElement>("#talk-toggle")!;
 const talkToggleLabel = document.querySelector<HTMLElement>("#talk-toggle-label")!;
 const talkEnabled = document.body.dataset.talkEnabled === "true";
-const talkPath = document.body.dataset.talkPath ?? "/plugins/avatar-talk";
+const talkPath = document.body.dataset.talkPath ?? "/plugins/avatar/talk";
 const token = new URL(location.href).searchParams.get("token") ?? "";
 const routeBase = location.pathname.replace(/\/$/u, "");
 const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-const socket = new WebSocket(
-  `${protocol}//${location.host}${routeBase}/stream?token=${encodeURIComponent(token)}`,
-);
+const socket = new WebSocket(`${protocol}//${location.host}${routeBase}/stream?token=${encodeURIComponent(token)}`);
 
 let state: AvatarState = "idle";
 let generation = 0;
@@ -185,10 +183,7 @@ function queuePcmEnvelope(base64: string, ptsMs: number): void {
   if (frames.length === 0) return;
   const now = performance.now();
   const playbackPts = audioClockOrigin === null ? null : now - audioClockOrigin;
-  if (
-    audioClockOrigin === null ||
-    (audioEnvelope.length === 0 && playbackPts !== null && ptsMs > playbackPts + 100)
-  ) {
+  if (audioClockOrigin === null || (audioEnvelope.length === 0 && playbackPts !== null && ptsMs > playbackPts + 100)) {
     audioClockOrigin = now - ptsMs;
   }
   audioEnvelope.push(...frames);
@@ -196,10 +191,7 @@ function queuePcmEnvelope(base64: string, ptsMs: number): void {
 }
 
 function hasScheduledAudio(now = performance.now()): boolean {
-  return (
-    audioClockOrigin !== null &&
-    (audioEnvelope.length > 0 || now - audioClockOrigin < audioEndPtsMs)
-  );
+  return audioClockOrigin !== null && (audioEnvelope.length > 0 || now - audioClockOrigin < audioEndPtsMs);
 }
 
 function advanceAudioEnvelope(now: number): boolean {
@@ -242,10 +234,7 @@ function encodePcm16(input: Float32Array, sampleRate: number): string {
   const sampleCount = Math.max(1, Math.round((input.length * 24_000) / sampleRate));
   const pcm = new Uint8Array(sampleCount * 2);
   for (let index = 0; index < sampleCount; index += 1) {
-    const sourceIndex = Math.min(
-      input.length - 1,
-      Math.floor((index * sampleRate) / 24_000),
-    );
+    const sourceIndex = Math.min(input.length - 1, Math.floor((index * sampleRate) / 24_000));
     const normalized = Math.max(-1, Math.min(1, input[sourceIndex] ?? 0));
     const sample = Math.round(normalized < 0 ? normalized * 0x8000 : normalized * 0x7fff);
     pcm[index * 2] = sample & 0xff;
@@ -272,8 +261,7 @@ function clearPlayback(): void {
 function detectBargeIn(samples: Float32Array): boolean {
   const audioContext = playbackContext;
   const playbackActive = Boolean(
-    audioContext &&
-      (playbackSources.size > 0 || playbackAt > audioContext.currentTime + 0.03),
+    audioContext && (playbackSources.size > 0 || playbackAt > audioContext.currentTime + 0.03),
   );
   if (!playbackActive || cancelOutputPending) {
     speechFramesDuringPlayback = 0;
@@ -287,9 +275,7 @@ function detectBargeIn(samples: Float32Array): boolean {
   }
   const rms = samples.length > 0 ? Math.sqrt(sum / samples.length) : 0;
   speechFramesDuringPlayback =
-    rms >= BARGE_IN_RMS_THRESHOLD && peak >= BARGE_IN_PEAK_THRESHOLD
-      ? speechFramesDuringPlayback + 1
-      : 0;
+    rms >= BARGE_IN_RMS_THRESHOLD && peak >= BARGE_IN_PEAK_THRESHOLD ? speechFramesDuringPlayback + 1 : 0;
   return speechFramesDuringPlayback >= BARGE_IN_CONSECUTIVE_FRAMES;
 }
 
@@ -380,10 +366,7 @@ async function startMicrophone(): Promise<void> {
         cancelOutputPending = true;
         clearPlayback();
       }
-      const audioBase64 = encodePcm16(
-        samples,
-        audioContext.sampleRate,
-      );
+      const audioBase64 = encodePcm16(samples, audioContext.sampleRate);
       microphoneDispatch = microphoneDispatch
         .then(async () => {
           if (bargeIn) {
@@ -598,7 +581,10 @@ function drawFace(cx: number, cy: number, scale: number): void {
   context.restore();
 }
 
-function inspectFirstFrame(): { nonBackground: boolean; foregroundPixels: number } {
+function inspectFirstFrame(): {
+  nonBackground: boolean;
+  foregroundPixels: number;
+} {
   const width = canvas.width;
   const height = canvas.height;
   const pixels = context.getImageData(0, 0, width, height).data;

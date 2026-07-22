@@ -1,7 +1,7 @@
 # OpenClaw Avatar Plugin
 
-An external [OpenClaw](https://github.com/openclaw/openclaw) plugin that turns the exact outgoing
-audio from an existing voice session into a polished, local animated avatar. The MVP ships an
+An external [OpenClaw](https://github.com/openclaw/openclaw) plugin that turns Talk activity into
+a polished, local animated avatar. The MVP ships a
 code-native animated version of the OpenClaw icon, an authenticated browser host, a canonical
 renderer event contract, and bounded session fanout.
 
@@ -10,9 +10,8 @@ renderer event contract, and bounded session fanout.
 The browser never receives provider credentials or runs agent tools. Its default-on microphone
 streams PCM into a Gateway-owned Talk session; Gateway owns Realtime, workspace/tool execution,
 waiting for agent completion, and the spoken response. The avatar independently observes the
-canonical Talk output-media stream, including output produced by other Talk surfaces. On stock
-builds without that tap, the UI and synthetic demo still work and the plugin reports the missing
-attachment without affecting audio.
+safe activity feed from every Talk surface. Its own interactive session receives exact output PCM
+through a session-scoped handle. On older builds, the UI and synthetic demo still work.
 
 ## Quick demo
 
@@ -69,9 +68,9 @@ continues to refresh the checked-in evidence.
 For an actual continuous voice conversation, use the interactive mode. It opens the real
 Gateway-hosted plugin page, whose default-on **MIC ON** toggle captures your microphone, streams PCM
 through Gateway Talk, plays the assistant response, and drives the avatar from that same response.
-The page creates the session with `agentConsultOwner: "gateway"`, so substantive transcripts run in
-the configured OpenClaw agent workspace and the completed result returns to the same Realtime voice
-session. The page itself remains only a microphone, audio player, and Talk-output renderer.
+The page uses `runtime.talk.openSession`, so substantive requests run in the configured OpenClaw
+workspace and the completed result returns to the same Realtime voice session. The page itself
+remains only a microphone, audio player, and avatar renderer.
 Turn the toggle off to stop Talk, or close Chrome to end the demo:
 
 ```bash
@@ -176,39 +175,23 @@ local transport only; the core TypeScript contract continues to use `Uint8Array`
 renderer is behind the event boundary, so a future Rive renderer can consume the same stream without
 changing the OpenClaw adapter or session core.
 
-## Exact OpenClaw adapter needed from core
+## OpenClaw Talk integration
 
 The plugin feature-detects this runtime shape and otherwise stays in local-idle mode:
 
 ```ts
-api.runtime.talk.subscribeOutputMedia({
-  scope: "all",
-  onEvent(event): void | Promise<void>
-}): () => void
+const stop = api.runtime.talk.watchActivity(onActivity);
+const session = await api.runtime.talk.openSession({ sessionKey, onEvent });
 ```
 
-The avatar intentionally opts into all Gateway-owned Talk sessions. Other consumers can provide a
-`sessionId` or `sessionKey` instead; omitting both a selector and explicit `scope: "all"` is
-rejected.
-
-The source events are provider-neutral:
-
-- `session.start`: `sessionId`, optional `sessionKey`, `generation`, and exact audio format;
-- `state`: the same identity/generation plus `ptsMs` and the canonical conversational state;
-- `audio`: the same identity/generation plus monotonic `sequence`, `ptsMs`, and `Uint8Array pcm`;
-- `clear`: the new generation and canonical clear reason;
-- `session.end`: the final generation and reason.
-
-`attachOpenClawOutputMedia` supplies configured video dimensions on start and otherwise maps core
-generation, sequence, timestamp, state, PCM, clear, and end values without reinterpretation. It
-selects one active session for the one-avatar MVP. The core media owner must remain responsible for
-provider/session creation, audio playback, resampling into the canonical format, and synchronized
-clear. The avatar receives no provider object, auth profile, API key, client secret, or generic raw
-Talk broadcast.
+`watchActivity` supplies anonymous lifecycle, state, and speech pulses for every Talk session. It
+contains no PCM, transcript, session key, or provider details. `openSession` creates one
+Gateway-owned conversation and returns exact PCM only for that handle. The plugin forwards browser
+microphone PCM to the handle and maps its state, audio, clear, and close events into `AvatarSession`.
 
 This is intentionally one narrow adapter boundary. `AvatarMediaSourceAdapter` and
 `AvatarMediaConsumer` are also exported for deterministic tests and future browser-owned WebRTC
-attachment, where decoded remote-track audio must be resampled once at the browser media owner.
+attachment.
 
 ## Current OpenClaw plugin-surface preflight
 
@@ -221,8 +204,7 @@ The implementation was checked against OpenClaw `origin/main` at
   plugin a sandboxed Control UI frame;
 - external plugins cannot ship a native bundled Control UI view, so the supported iframe route is
   the correct surface;
-- authenticated plugin HTTP routes can use the public `gateway-method-runtime` contract to invoke
-  normal Talk methods with the caller's Gateway scopes;
+- authenticated plugin HTTP routes can open a scoped Talk session through `runtime.talk.openSession`;
 - the plugin imports only public `openclaw/plugin-sdk/*` modules and does not reach into core internals.
 
 The installed route requires Gateway authentication, the manifest's explicit authenticated-request

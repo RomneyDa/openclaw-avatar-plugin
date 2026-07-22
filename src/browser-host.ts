@@ -18,11 +18,7 @@ export type AvatarBrowserHostOptions = {
 
 export type AvatarBrowserTalkController = {
   start: () => Promise<{ sessionId: string }>;
-  appendAudio: (params: {
-    sessionId: string;
-    audioBase64: string;
-    timestamp: number;
-  }) => Promise<void>;
+  appendAudio: (params: { sessionId: string; audioBase64: string; timestamp: number }) => Promise<void>;
   cancelOutput: (sessionId: string) => Promise<void>;
   stop: (sessionId: string) => Promise<void>;
 };
@@ -68,7 +64,10 @@ export class AvatarBrowserHost {
   readonly routeBase: string;
   readonly token: string;
   readonly maxTransportBufferedBytes: number;
-  readonly webSockets = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 });
+  readonly webSockets = new WebSocketServer({
+    noServer: true,
+    maxPayload: 8 * 1024,
+  });
   #server: Server | null = null;
   #port = 0;
   #clientCounter = 0;
@@ -140,6 +139,9 @@ export class AvatarBrowserHost {
       return true;
     }
     const suffix = this.suffix(url.pathname);
+    if (request.method === "POST" && suffix.startsWith("/talk/")) {
+      return await this.handleTalkRequest(request, response, suffix.slice("/talk".length));
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       response.statusCode = 405;
       response.setHeader("allow", "GET, HEAD");
@@ -191,30 +193,6 @@ export class AvatarBrowserHost {
     return true;
   }
 
-  async handleGatewayTalkRequest(
-    request: IncomingMessage,
-    response: ServerResponse,
-  ): Promise<boolean> {
-    const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    const talkRouteBase = "/plugins/avatar-talk";
-    if (url.pathname !== talkRouteBase && !url.pathname.startsWith(`${talkRouteBase}/`)) {
-      return false;
-    }
-    this.applySecurityHeaders(response);
-    if (!isLoopbackAddress(request.socket.remoteAddress)) {
-      response.statusCode = 403;
-      response.end("loopback only");
-      return true;
-    }
-    if (!this.validToken(url.searchParams.get("token"))) {
-      response.statusCode = 401;
-      response.end("unauthorized");
-      return true;
-    }
-    const suffix = url.pathname.slice(talkRouteBase.length);
-    return await this.handleTalkRequest(request, response, suffix);
-  }
-
   snapshot() {
     return {
       runningStandalone: Boolean(this.#server),
@@ -245,7 +223,10 @@ export class AvatarBrowserHost {
     let ready = false;
     const unsubscribe = this.session.subscribe(id, (event) => {
       if (socket.readyState !== WebSocket.OPEN) throw new Error("renderer transport disconnected");
-      if (socket.bufferedAmount > this.maxTransportBufferedBytes && (event.type === "audio" || event.type === "visemes")) {
+      if (
+        socket.bufferedAmount > this.maxTransportBufferedBytes &&
+        (event.type === "audio" || event.type === "visemes")
+      ) {
         this.#droppedTransportMedia += 1;
         return;
       }
@@ -377,11 +358,7 @@ export class AvatarBrowserHost {
     return parsed as Record<string, unknown>;
   }
 
-  private respondJson(
-    response: ServerResponse,
-    status: number,
-    body: Record<string, unknown>,
-  ): void {
+  private respondJson(response: ServerResponse, status: number, body: Record<string, unknown>): void {
     response.statusCode = status;
     response.setHeader("content-type", "application/json; charset=utf-8");
     response.end(JSON.stringify(body));
@@ -426,7 +403,7 @@ export class AvatarBrowserHost {
     <title>OpenClaw Avatar</title>
     <link rel="stylesheet" href="${this.routeBase}/styles.css?token=${token}">
   </head>
-  <body data-talk-enabled="${talkEnabled ? "true" : "false"}" data-talk-path="/plugins/avatar-talk">
+  <body data-talk-enabled="${talkEnabled ? "true" : "false"}" data-talk-path="/plugins/avatar/talk">
     <main id="stage" aria-label="OpenClaw animated avatar">
       <canvas id="avatar" width="1280" height="720"></canvas>
       <section id="chrome" aria-live="polite">
