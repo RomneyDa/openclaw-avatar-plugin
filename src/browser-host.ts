@@ -10,17 +10,9 @@ import type { AvatarSession } from "./session.js";
 export type AvatarBrowserHostOptions = {
   session: AvatarSession;
   assetsPath: string;
-  talk?: AvatarBrowserTalkController;
   routeBase?: string;
   token?: string;
   maxTransportBufferedBytes?: number;
-};
-
-export type AvatarBrowserTalkController = {
-  start: () => Promise<{ sessionId: string }>;
-  appendAudio: (params: { sessionId: string; audioBase64: string; timestamp: number }) => Promise<void>;
-  cancelOutput: (sessionId: string) => Promise<void>;
-  stop: (sessionId: string) => Promise<void>;
 };
 
 type ClientStatus = {
@@ -60,7 +52,6 @@ function serializeEvent(event: AvatarEvent): string {
 export class AvatarBrowserHost {
   readonly session: AvatarSession;
   readonly assetsPath: string;
-  readonly talk: AvatarBrowserTalkController | undefined;
   readonly routeBase: string;
   readonly token: string;
   readonly maxTransportBufferedBytes: number;
@@ -83,7 +74,6 @@ export class AvatarBrowserHost {
   constructor(options: AvatarBrowserHostOptions) {
     this.session = options.session;
     this.assetsPath = options.assetsPath;
-    this.talk = options.talk;
     this.routeBase = normalizeRouteBase(options.routeBase ?? "/plugins/avatar");
     this.token = options.token ?? randomBytes(24).toString("base64url");
     this.maxTransportBufferedBytes = options.maxTransportBufferedBytes ?? 1_048_576;
@@ -139,9 +129,6 @@ export class AvatarBrowserHost {
       return true;
     }
     const suffix = this.suffix(url.pathname);
-    if (request.method === "POST" && suffix.startsWith("/talk/")) {
-      return await this.handleTalkRequest(request, response, suffix.slice("/talk".length));
-    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       response.statusCode = 405;
       response.setHeader("allow", "GET, HEAD");
@@ -156,8 +143,7 @@ export class AvatarBrowserHost {
     }
     if (suffix === "/" || suffix === "") {
       response.setHeader("content-type", "text/html; charset=utf-8");
-      const standaloneRequest = this.#port > 0 && request.socket.localPort === this.#port;
-      response.end(this.indexHtml(Boolean(this.talk) && !standaloneRequest));
+      response.end(this.indexHtml());
       return true;
     }
     const asset = suffix === "/client.js" ? "client.js" : suffix === "/styles.css" ? "styles.css" : null;
@@ -282,88 +268,6 @@ export class AvatarBrowserHost {
     }
   }
 
-  private async handleTalkRequest(
-    request: IncomingMessage,
-    response: ServerResponse,
-    suffix: string,
-  ): Promise<boolean> {
-    if (!this.talk || (this.#port > 0 && request.socket.localPort === this.#port)) {
-      response.statusCode = 404;
-      response.end("talk input unavailable");
-      return true;
-    }
-    if (request.method !== "POST") {
-      response.statusCode = 405;
-      response.setHeader("allow", "POST");
-      response.end("method not allowed");
-      return true;
-    }
-    try {
-      const body = await this.readJsonBody(request);
-      if (suffix === "/start") {
-        const started = await this.talk.start();
-        this.respondJson(response, 200, started);
-        return true;
-      }
-      const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-      if (!sessionId) throw new Error("sessionId is required");
-      if (suffix === "/audio") {
-        const audioBase64 = typeof body.audioBase64 === "string" ? body.audioBase64 : "";
-        const timestamp = typeof body.timestamp === "number" ? body.timestamp : Number.NaN;
-        if (!audioBase64 || audioBase64.length > 192_000 || !Number.isFinite(timestamp)) {
-          throw new Error("valid audioBase64 and timestamp are required");
-        }
-        await this.talk.appendAudio({ sessionId, audioBase64, timestamp });
-        this.respondJson(response, 200, { ok: true });
-        return true;
-      }
-      if (suffix === "/cancel-output") {
-        await this.talk.cancelOutput(sessionId);
-        this.respondJson(response, 200, { ok: true });
-        return true;
-      }
-      if (suffix === "/stop") {
-        await this.talk.stop(sessionId);
-        this.respondJson(response, 200, { ok: true });
-        return true;
-      }
-      response.statusCode = 404;
-      response.end("not found");
-    } catch (error) {
-      response.statusCode = 400;
-      response.setHeader("content-type", "application/json; charset=utf-8");
-      response.end(
-        JSON.stringify({
-          error: error instanceof Error ? error.message.slice(0, 240) : "talk request failed",
-        }),
-      );
-    }
-    return true;
-  }
-
-  private async readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
-    const chunks: Buffer[] = [];
-    let bytes = 0;
-    for await (const chunk of request) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      bytes += buffer.byteLength;
-      if (bytes > 256 * 1024) throw new Error("request body is too large");
-      chunks.push(buffer);
-    }
-    if (chunks.length === 0) return {};
-    const parsed = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new Error("JSON object required");
-    }
-    return parsed as Record<string, unknown>;
-  }
-
-  private respondJson(response: ServerResponse, status: number, body: Record<string, unknown>): void {
-    response.statusCode = status;
-    response.setHeader("content-type", "application/json; charset=utf-8");
-    response.end(JSON.stringify(body));
-  }
-
   private matches(pathname: string): boolean {
     return pathname === this.routeBase || pathname.startsWith(`${this.routeBase}/`);
   }
@@ -392,7 +296,7 @@ export class AvatarBrowserHost {
     );
   }
 
-  private indexHtml(talkEnabled: boolean): string {
+  private indexHtml(): string {
     const token = encodeURIComponent(this.token);
     return `<!doctype html>
 <html lang="en">
@@ -403,7 +307,7 @@ export class AvatarBrowserHost {
     <title>OpenClaw Avatar</title>
     <link rel="stylesheet" href="${this.routeBase}/styles.css?token=${token}">
   </head>
-  <body data-talk-enabled="${talkEnabled ? "true" : "false"}" data-talk-path="/plugins/avatar/talk">
+  <body>
     <main id="stage" aria-label="OpenClaw animated avatar">
       <canvas id="avatar" width="1280" height="720"></canvas>
       <section id="chrome" aria-live="polite">
@@ -411,10 +315,6 @@ export class AvatarBrowserHost {
         <div id="status"><span class="status-dot"></span><span id="status-label">CONNECTING</span></div>
       </section>
       <div id="error" hidden></div>
-      <label id="talk-control" ${talkEnabled ? "" : "hidden"}>
-        <input id="talk-toggle" type="checkbox" checked>
-        <span id="talk-toggle-label">MIC ON</span>
-      </label>
     </main>
     <script type="module" src="${this.routeBase}/client.js?token=${token}"></script>
   </body>
