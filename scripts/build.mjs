@@ -12,11 +12,11 @@ fs.mkdirSync(path.join(outdir, "browser"), { recursive: true });
 
 const nodeBuild = {
   absWorkingDir: root,
-  entryPoints: { index: "index.ts", demo: "src/demo.ts" },
+  entryPoints: { index: "index.ts", renderer: "src/renderer.ts", demo: "src/demo.ts" },
   outdir,
   outExtension: { ".js": ".mjs" },
   bundle: true,
-  external: ["openclaw", "openclaw/*", "ws"],
+  external: ["ws"],
   platform: "node",
   format: "esm",
   target: "node22",
@@ -42,7 +42,7 @@ fs.copyFileSync(path.join(root, "browser", "styles.css"), path.join(outdir, "bro
 if (watch) {
   const [nodeContext, browserContext] = await Promise.all([context(nodeBuild), context(browserBuild)]);
   await Promise.all([nodeContext.watch(), browserContext.watch()]);
-  console.log("watching avatar plugin sources");
+  console.log("watching avatar renderer sources");
 } else {
   await Promise.all([build(nodeBuild), build(browserBuild)]);
   execFileSync(path.join(root, "node_modules", ".bin", "tsc"), ["-p", "tsconfig.build.json"], {
