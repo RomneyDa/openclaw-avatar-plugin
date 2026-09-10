@@ -3,6 +3,15 @@ import { createAvatarMediaConsumer, type AvatarMediaConsumer } from "./adapter.j
 import { AvatarBrowserHost } from "./browser-host.js";
 import { AvatarSession, type AvatarSessionOptions } from "./session.js";
 
+export type {
+  AvatarClearReason,
+  AvatarEvent,
+  AvatarSessionDescription,
+  AvatarState,
+  CanonicalViseme,
+} from "./events.js";
+export type { AvatarMediaConsumer } from "./adapter.js";
+
 export type AvatarRendererOptions = AvatarSessionOptions & {
   port?: number;
   assetsPath?: string;

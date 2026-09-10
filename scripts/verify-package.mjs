@@ -21,10 +21,10 @@ const required = [
   "dist/browser/styles.css",
   "dist/demo.mjs",
   "dist/index.mjs",
+  "dist/renderer.mjs",
   "dist/types/index.d.ts",
-  "openclaw.plugin.json",
+  "dist/types/src/renderer.d.ts",
   "package.json",
-  "scripts/live-demo.mjs",
 ];
 for (const entry of required) {
   if (!entries.includes(entry)) throw new Error(`package is missing required entry: ${entry}`);
@@ -46,5 +46,10 @@ for (const entry of entries) {
   if (credentialPatterns.some((pattern) => pattern.test(contents))) {
     throw new Error(`package entry looks like it contains a credential: ${entry}`);
   }
+}
+const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+const serialized = JSON.stringify(packageJson);
+if (/openclaw\.plugin|peerDependencies.*openclaw|scripts\/live-demo/u.test(serialized)) {
+  throw new Error("package metadata still exposes the obsolete OpenClaw plugin product");
 }
 console.log(`package verification passed: ${entries.length} files, ${metadata.size} bytes packed`);

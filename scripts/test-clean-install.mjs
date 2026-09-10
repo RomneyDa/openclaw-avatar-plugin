@@ -27,7 +27,6 @@ try {
       "--no-audit",
       "--no-fund",
       "--package-lock=false",
-      `openclaw@2026.7.2-beta.2`,
       path.join(directory, filename),
     ],
     { cwd: directory, stdio: "pipe", env: { ...process.env, NPM_CONFIG_IGNORE_SCRIPTS: "true" } },
@@ -37,11 +36,11 @@ try {
     [
       "--input-type=module",
       "--eval",
-      "const plugin = await import('openclaw-avatar-plugin'); if (typeof plugin.default?.register !== 'function' || typeof plugin.AvatarSession !== 'function') throw new Error('plugin exports failed to load');",
+      "const renderer = await import('openclaw-avatar-plugin/renderer'); if (typeof renderer.createAvatarRenderer !== 'function') throw new Error('renderer subpath failed to load');",
     ],
     { cwd: directory, stdio: "inherit" },
   );
-  console.log("clean packed install passed: plugin entry and public session core loaded");
+  console.log("clean packed install passed: renderer subpath loaded without OpenClaw, FaceTime, OBS, or provider code");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }

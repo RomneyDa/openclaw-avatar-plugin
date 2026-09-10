@@ -8,11 +8,13 @@
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
-      "import": "./dist/index.mjs"
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
     },
     "./renderer": {
       "types": "./dist/types/src/renderer.d.ts",
-      "import": "./dist/renderer.mjs"
+      "import": "./dist/renderer.mjs",
+      "default": "./dist/renderer.mjs"
     }
   },
   "sideEffects": false,
@@ -41,6 +43,7 @@
     "demo": "npm run build && node dist/demo.mjs --open",
     "demo:headless": "npm run build && node dist/demo.mjs",
     "check": "npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:package",
+    "prepare": "npm run build",
     "prepack": "npm run build"
   },
   "engines": {
