@@ -1,8 +1,13 @@
-# OpenClaw Avatar Renderer
+# OpenClaw Avatar
 
-A small reusable lobster renderer for caller-owned voice integrations. It exposes an authenticated
-loopback browser surface and a canonical PCM/viseme event consumer. It does not create, observe, or
-coordinate voice sessions.
+The OpenClaw lobster as a generic live-visual provider and reusable renderer library. An embedding
+integration supplies caller-owned timed media; this package returns an authenticated loopback
+browser surface. It does not create, observe, or coordinate voice sessions.
+
+When installed as an OpenClaw plugin, it registers the `lobster` live-visual provider. Consumers
+open it through `openclaw/plugin-sdk/live-visual`, write sample-clock media and optional cues, and
+render the returned browser-source URL. The provider has no FaceTime, OBS, call, or realtime-provider
+knowledge.
 
 ```ts
 import { createAvatarRenderer } from "openclaw-avatar-plugin/renderer";
@@ -30,9 +35,9 @@ This package owns only:
 - the token-authenticated loopback HTTP/WebSocket host;
 - bounded renderer queues, generations, stale-media rejection, readiness, and metrics.
 
-The embedding integration owns its provider session, credentials, tools, call IDs, media pacer,
-audio playback, OBS/Virtual Camera lifecycle, interruption, cancellation, and cleanup. The renderer
-has no OpenClaw runtime, microphone, Talk, FaceTime, OBS, or provider dependency.
+The embedding integration owns its media session, credentials, tools, synchronization, playback,
+video delivery, interruption, cancellation, and cleanup. The renderer has no microphone, Talk,
+FaceTime, OBS, or realtime-provider dependency.
 
 ## Contract
 
@@ -56,6 +61,5 @@ npm run check
 real browser first frame and PCM-driven mouth motion. `npm run test:package` proves a clean packed
 install can import `openclaw-avatar-plugin/renderer` without installing OpenClaw or FaceTime code.
 
-The package has not been published to npm and has no shipped compatibility obligation as an
-OpenClaw plugin. The former standalone Talk product and plugin manifest were intentionally removed
-when this repository became a renderer library.
+The OpenClaw entry only registers the generic live-visual provider. The former standalone Talk
+product remains removed.

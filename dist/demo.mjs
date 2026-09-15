@@ -323,7 +323,6 @@ var AVATAR_AUDIO_FORMAT = {
 };
 var VISEMES = new Set(CANONICAL_VISEMES);
 var STATES = /* @__PURE__ */ new Set(["idle", "listening", "thinking", "speaking", "error"]);
-var CLEAR_REASONS = /* @__PURE__ */ new Set(["barge-in", "cancel", "replace", "hangup", "error"]);
 function record(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`${label} must be an object`);
@@ -433,13 +432,10 @@ function validateAvatarEvent(value, options = {}) {
     };
   }
   if (type === "clear") {
-    if (typeof event.reason !== "string" || !CLEAR_REASONS.has(event.reason)) {
-      throw new TypeError("invalid clear reason");
-    }
     return {
       type,
       generation: generation(event.generation),
-      reason: event.reason
+      reason: boundedString(event.reason, "clear reason", 256)
     };
   }
   if (type === "session.end") {

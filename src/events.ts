@@ -18,7 +18,7 @@ export const CANONICAL_VISEMES = [
 
 export type CanonicalViseme = (typeof CANONICAL_VISEMES)[number];
 export type AvatarState = "idle" | "listening" | "thinking" | "speaking" | "error";
-export type AvatarClearReason = "barge-in" | "cancel" | "replace" | "hangup" | "error";
+export type AvatarClearReason = string;
 
 export const AVATAR_AUDIO_FORMAT = {
   encoding: "pcm16le",
@@ -62,7 +62,6 @@ export type AvatarEventValidationOptions = {
 
 const VISEMES = new Set<string>(CANONICAL_VISEMES);
 const STATES = new Set<string>(["idle", "listening", "thinking", "speaking", "error"]);
-const CLEAR_REASONS = new Set<string>(["barge-in", "cancel", "replace", "hangup", "error"]);
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -192,13 +191,10 @@ export function validateAvatarEvent(
   }
 
   if (type === "clear") {
-    if (typeof event.reason !== "string" || !CLEAR_REASONS.has(event.reason)) {
-      throw new TypeError("invalid clear reason");
-    }
     return {
       type,
       generation: generation(event.generation),
-      reason: event.reason as AvatarClearReason,
+      reason: boundedString(event.reason, "clear reason", 256),
     };
   }
 

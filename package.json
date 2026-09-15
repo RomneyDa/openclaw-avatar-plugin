@@ -27,8 +27,14 @@
     "url": "https://github.com/RomneyDa/openclaw-avatar-plugin/issues"
   },
   "homepage": "https://github.com/RomneyDa/openclaw-avatar-plugin#readme",
+  "openclaw": {
+    "extensions": [
+      "./dist/plugin.mjs"
+    ]
+  },
   "files": [
     "dist",
+    "openclaw.plugin.json",
     "LICENSE",
     "NOTICE.md",
     "README.md"

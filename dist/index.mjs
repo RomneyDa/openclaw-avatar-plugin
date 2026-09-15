@@ -320,7 +320,6 @@ var AVATAR_AUDIO_FORMAT = {
 };
 var VISEMES = new Set(CANONICAL_VISEMES);
 var STATES = /* @__PURE__ */ new Set(["idle", "listening", "thinking", "speaking", "error"]);
-var CLEAR_REASONS = /* @__PURE__ */ new Set(["barge-in", "cancel", "replace", "hangup", "error"]);
 function record(value, label) {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(`${label} must be an object`);
@@ -430,13 +429,10 @@ function validateAvatarEvent(value, options = {}) {
     };
   }
   if (type === "clear") {
-    if (typeof event.reason !== "string" || !CLEAR_REASONS.has(event.reason)) {
-      throw new TypeError("invalid clear reason");
-    }
     return {
       type,
       generation: generation(event.generation),
-      reason: event.reason
+      reason: boundedString(event.reason, "clear reason", 256)
     };
   }
   if (type === "session.end") {
@@ -759,6 +755,73 @@ function createAvatarRenderer(options = {}) {
     snapshot: () => host.snapshot()
   };
 }
+
+// src/provider.ts
+var AVATAR_STATES = /* @__PURE__ */ new Set([
+  "idle",
+  "listening",
+  "thinking",
+  "speaking",
+  "error"
+]);
+function requireSupportedAudio(format) {
+  if (!format || format.encoding !== "pcm-s16le" || format.sampleRateHz !== 24e3 || format.channels !== 1) {
+    throw new Error("lobster live visual requires mono PCM S16LE audio at 24000 Hz");
+  }
+}
+function createLobsterLiveVisualProvider(options = {}) {
+  return {
+    id: "lobster",
+    label: "OpenClaw Lobster",
+    async open(request) {
+      requireSupportedAudio(request.audio);
+      if (!Number.isSafeInteger(request.clock.unitsPerSecond) || request.clock.unitsPerSecond <= 0) {
+        throw new Error("live visual clock unitsPerSecond must be a positive safe integer");
+      }
+      const renderer = createAvatarRenderer(options);
+      await renderer.start();
+      renderer.consumer.start({
+        sessionId: request.streamId,
+        video: request.video,
+        initialState: "idle"
+      });
+      let closed = false;
+      const toMs = (pts2) => pts2 * 1e3 / request.clock.unitsPerSecond;
+      return {
+        output: { kind: "browser-source", url: renderer.rendererUrl, video: request.video },
+        write(event) {
+          if (closed) return false;
+          if (event.type === "audio") {
+            return renderer.consumer.audio(event.data, toMs(event.pts));
+          }
+          if (event.type === "flush") {
+            renderer.consumer.clear(event.reason?.trim() || "flush");
+            return true;
+          }
+          if (event.name === "activity" && typeof event.value === "string" && AVATAR_STATES.has(event.value)) {
+            renderer.consumer.state(event.value, toMs(event.pts));
+          }
+          return true;
+        },
+        health() {
+          const snapshot = renderer.snapshot();
+          const error = snapshot.rendererError ?? void 0;
+          return {
+            status: closed ? "closed" : error ? "degraded" : snapshot.readyClients > 0 ? "ready" : "starting",
+            droppedMediaBytes: snapshot.session.droppedMediaBytes + snapshot.droppedTransportMedia,
+            ...error ? { error } : {}
+          };
+        },
+        async close(reason = "closed") {
+          if (closed) return;
+          closed = true;
+          renderer.consumer.end(reason);
+          await renderer.stop();
+        }
+      };
+    }
+  };
+}
 export {
   AVATAR_AUDIO_FORMAT,
   AvatarBrowserHost,
@@ -766,6 +829,7 @@ export {
   CANONICAL_VISEMES,
   createAvatarMediaConsumer,
   createAvatarRenderer,
+  createLobsterLiveVisualProvider,
   validateAvatarEvent
 };
 //# sourceMappingURL=index.mjs.map
