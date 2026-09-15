@@ -12,7 +12,11 @@ import type { AvatarSession } from "./session.js";
  * never receives provider credentials.
  */
 export type AvatarMediaConsumer = {
-  start(description: Omit<AvatarSessionDescription, "generation" | "audio">): void;
+  start(
+    description: Omit<AvatarSessionDescription, "generation" | "audio"> & {
+      initialState?: AvatarState;
+    },
+  ): void;
   audio(pcm16le24kMono: Uint8Array, ptsMs: number): boolean;
   visemes(weights: Partial<Record<CanonicalViseme, number>>, ptsMs: number): boolean;
   state(state: AvatarState, ptsMs: number): void;
@@ -28,7 +32,10 @@ export interface AvatarMediaSourceAdapter {
 
 export function createAvatarMediaConsumer(session: AvatarSession): AvatarMediaConsumer {
   return {
-    start: ({ sessionId, video }) => session.start({ sessionId, video }),
+    start: ({ sessionId, video, initialState }) => {
+      session.start({ sessionId, video });
+      if (initialState && initialState !== "idle") session.state(initialState, 0);
+    },
     audio: (pcm, ptsMs) => session.audio(pcm, ptsMs),
     visemes: (weights, ptsMs) => session.visemes(weights, ptsMs),
     state: (state, ptsMs) => session.state(state, ptsMs),

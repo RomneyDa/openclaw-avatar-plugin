@@ -1,10 +1,23 @@
 {
   "name": "openclaw-avatar-plugin",
   "version": "0.1.0",
-  "description": "Local, renderer-neutral animated avatar surface for OpenClaw voice sessions",
+  "description": "Authenticated loopback lobster renderer for PCM-driven avatar consumers",
   "type": "module",
   "main": "dist/index.mjs",
   "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.mjs",
+      "default": "./dist/index.mjs"
+    },
+    "./renderer": {
+      "types": "./dist/types/src/renderer.d.ts",
+      "import": "./dist/renderer.mjs",
+      "default": "./dist/renderer.mjs"
+    }
+  },
+  "sideEffects": false,
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,11 +29,9 @@
   "homepage": "https://github.com/RomneyDa/openclaw-avatar-plugin#readme",
   "files": [
     "dist",
-    "scripts/live-demo.mjs",
     "LICENSE",
     "NOTICE.md",
-    "README.md",
-    "openclaw.plugin.json"
+    "README.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -31,10 +42,8 @@
     "test:package": "npm run build && node scripts/verify-package.mjs && node scripts/test-clean-install.mjs",
     "demo": "npm run build && node dist/demo.mjs --open",
     "demo:headless": "npm run build && node dist/demo.mjs",
-    "demo:live": "npm run build && node scripts/live-demo.mjs",
-    "demo:live:visible": "npm run build && node scripts/live-demo.mjs --headed --speaking-view-ms 15000 --neutral-view-ms 15000",
-    "demo:live:interactive": "npm run build && node scripts/live-demo.mjs --headed --interactive",
     "check": "npm run typecheck && npm run build && npm test && npm run test:browser && npm run test:package",
+    "prepare": "npm run build",
     "prepack": "npm run build"
   },
   "engines": {
@@ -47,14 +56,6 @@
     "lip-sync",
     "canvas"
   ],
-  "peerDependencies": {
-    "openclaw": ">=2026.7.2-beta.2"
-  },
-  "peerDependenciesMeta": {
-    "openclaw": {
-      "optional": true
-    }
-  },
   "dependencies": {
     "ws": "^8.21.0"
   },
@@ -62,22 +63,8 @@
     "@types/node": "^24.0.0",
     "@types/ws": "^8.18.1",
     "esbuild": "^0.25.12",
-    "openclaw": "2026.7.2-beta.2",
     "playwright-core": "^1.52.0",
     "typescript": "^5.8.3",
     "vitest": "^3.2.2"
-  },
-  "openclaw": {
-    "extensions": [
-      "./dist/index.mjs"
-    ],
-    "compat": {
-      "pluginApi": ">=2026.7.2-beta.2",
-      "minGatewayVersion": "2026.7.2-beta.2"
-    },
-    "build": {
-      "openclawVersion": "2026.7.2-beta.2",
-      "pluginSdkVersion": "2026.7.2-beta.2"
-    }
   }
 }

@@ -69,4 +69,20 @@ describe("AvatarSession", () => {
     expect(received.find((event) => event.type === "audio")).toMatchObject({ generation: 7, sequence: 12 });
     expect(session.snapshot().generation).toBe(8);
   });
+
+  it("owns an exact PCM copy before asynchronous renderer delivery", async () => {
+    const received: AvatarEvent[] = [];
+    const session = new AvatarSession();
+    session.subscribe("renderer", (event) => {
+      received.push(event);
+    });
+    session.start({ sessionId: "pcm" });
+    const pcm = new Uint8Array([0x00, 0x80, 0xff, 0x7f]);
+    session.audio(pcm, 0);
+    pcm.fill(0);
+    await vi.waitFor(() => expect(received.some((event) => event.type === "audio")).toBe(true));
+    expect(received.find((event) => event.type === "audio")).toMatchObject({
+      pcm: new Uint8Array([0x00, 0x80, 0xff, 0x7f]),
+    });
+  });
 });

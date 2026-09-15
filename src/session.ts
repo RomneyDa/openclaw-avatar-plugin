@@ -230,7 +230,7 @@ export class AvatarSession {
       generation: this.metrics.generation,
       sequence: this.#sequence++,
       ptsMs,
-      pcm,
+      pcm: Uint8Array.from(pcm),
     });
   }
 
@@ -245,7 +245,7 @@ export class AvatarSession {
     this.metrics.currentState = "speaking";
     this.metrics.inputAudioBytes += params.pcm.byteLength;
     this.#sequence = Math.max(this.#sequence, params.sequence + 1);
-    return this.publish({ type: "audio", ...params });
+    return this.publish({ type: "audio", ...params, pcm: Uint8Array.from(params.pcm) });
   }
 
   visemes(weights: Partial<Record<CanonicalViseme, number>>, ptsMs: number): boolean {

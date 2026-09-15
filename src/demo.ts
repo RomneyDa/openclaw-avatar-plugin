@@ -1,20 +1,18 @@
 import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { AvatarBrowserHost } from "./browser-host.js";
-import { AvatarSession } from "./session.js";
+import { createAvatarRenderer } from "./renderer.js";
 
-const session = new AvatarSession();
-const host = new AvatarBrowserHost({
-  session,
-  assetsPath: fileURLToPath(new URL("./browser/", import.meta.url)),
+const renderer = createAvatarRenderer();
+await renderer.start();
+const { consumer } = renderer;
+consumer.start({
+  sessionId: "synthetic-demo",
+  video: { width: 1280, height: 720, frameRate: 30 },
+  initialState: "listening",
 });
-await host.startStandalone(0);
-session.start({ sessionId: "synthetic-demo", video: { width: 1280, height: 720, frameRate: 30 } });
-session.state("listening", 0);
 
-console.log(`OpenClaw Avatar demo: ${host.rendererUrl}`);
+console.log(`OpenClaw Avatar demo: ${renderer.rendererUrl}`);
 if (process.argv.includes("--open")) {
-  execFile("open", [host.rendererUrl], () => {});
+  execFile("open", [renderer.rendererUrl], () => {});
 }
 
 let sampleOffset = 0;
@@ -27,16 +25,16 @@ const timer = setInterval(() => {
   if (phase === "listening" && phaseAge > 1600) {
     phase = "thinking";
     phaseStarted = now;
-    session.state("thinking", elapsedMs);
+    consumer.state("thinking", elapsedMs);
   } else if (phase === "thinking" && phaseAge > 1200) {
     phase = "speaking";
     phaseStarted = now;
-    session.state("speaking", elapsedMs);
+    consumer.state("speaking", elapsedMs);
   } else if (phase === "speaking" && phaseAge > 5600) {
-    session.clear("cancel");
+    consumer.clear("cancel");
     phase = "listening";
     phaseStarted = now;
-    session.state("listening", 0);
+    consumer.state("listening", 0);
     elapsedMs = 0;
     sampleOffset = 0;
   }
@@ -58,16 +56,16 @@ const timer = setInterval(() => {
     pcm.writeInt16LE(Math.round(Math.max(-1, Math.min(1, voice * envelope)) * 26_000), index * 2);
   }
   const openness = Math.min(1, (envelopeSum / samples) * 1.4);
-  session.visemes({ aa: openness, E: (1 - openness) * 0.35, sil: 1 - openness }, elapsedMs);
-  session.audio(pcm, elapsedMs);
+  consumer.visemes({ aa: openness, E: (1 - openness) * 0.35, sil: 1 - openness }, elapsedMs);
+  consumer.audio(pcm, elapsedMs);
   sampleOffset += samples;
   elapsedMs += 20;
 }, 20);
 
 const shutdown = async () => {
   clearInterval(timer);
-  session.end("demo-stopped");
-  await host.stop();
+  consumer.end("demo-stopped");
+  await renderer.stop();
   process.exit(0);
 };
 process.once("SIGINT", () => void shutdown());
