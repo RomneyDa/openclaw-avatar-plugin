@@ -12,7 +12,12 @@ fs.mkdirSync(path.join(outdir, "browser"), { recursive: true });
 
 const nodeBuild = {
   absWorkingDir: root,
-  entryPoints: { index: "index.ts", renderer: "src/renderer.ts", demo: "src/demo.ts" },
+  entryPoints: {
+    index: "index.ts",
+    plugin: "plugin.ts",
+    renderer: "src/renderer.ts",
+    demo: "src/demo.ts",
+  },
   outdir,
   outExtension: { ".js": ".mjs" },
   bundle: true,

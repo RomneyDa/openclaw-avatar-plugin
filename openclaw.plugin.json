@@ -1,0 +1,19 @@
+{
+  "id": "openclaw-avatar",
+  "name": "OpenClaw Avatar",
+  "description": "Provides the PCM-driven OpenClaw lobster as a live visual surface.",
+  "categories": ["media"],
+  "activation": { "onStartup": false },
+  "enabledByDefault": false,
+  "contracts": {
+    "liveVisualProviders": ["lobster"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "port": { "type": "integer", "minimum": 0, "maximum": 65535 },
+      "maxBufferedBytes": { "type": "integer", "minimum": 65536, "maximum": 16777216 }
+    }
+  }
+}

@@ -3,3 +3,4 @@ export { createAvatarMediaConsumer, type AvatarMediaConsumer } from "./src/adapt
 export { AvatarBrowserHost, type AvatarBrowserHostOptions } from "./src/browser-host.js";
 export { AVATAR_AUDIO_FORMAT, CANONICAL_VISEMES, validateAvatarEvent, type AvatarClearReason, type AvatarEvent, type AvatarSessionDescription, type AvatarState, type CanonicalViseme, } from "./src/events.js";
 export { AvatarSession, type AvatarSessionMetrics, type AvatarSessionOptions } from "./src/session.js";
+export { createLobsterLiveVisualProvider, type LiveVisualAudioFormat, type LiveVisualHealth, type LiveVisualInputEvent, type LiveVisualProvider, type LiveVisualSession, type LiveVisualSessionOpenRequest, } from "./src/provider.js";

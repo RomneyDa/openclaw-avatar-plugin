@@ -1,7 +1,7 @@
 export declare const CANONICAL_VISEMES: readonly ["sil", "PP", "FF", "TH", "DD", "kk", "CH", "SS", "nn", "RR", "aa", "E", "I", "O", "U"];
 export type CanonicalViseme = (typeof CANONICAL_VISEMES)[number];
 export type AvatarState = "idle" | "listening" | "thinking" | "speaking" | "error";
-export type AvatarClearReason = "barge-in" | "cancel" | "replace" | "hangup" | "error";
+export type AvatarClearReason = string;
 export declare const AVATAR_AUDIO_FORMAT: {
     readonly encoding: "pcm16le";
     readonly sampleRateHz: 24000;

@@ -12,3 +12,12 @@ export {
   type CanonicalViseme,
 } from "./src/events.js";
 export { AvatarSession, type AvatarSessionMetrics, type AvatarSessionOptions } from "./src/session.js";
+export {
+  createLobsterLiveVisualProvider,
+  type LiveVisualAudioFormat,
+  type LiveVisualHealth,
+  type LiveVisualInputEvent,
+  type LiveVisualProvider,
+  type LiveVisualSession,
+  type LiveVisualSessionOpenRequest,
+} from "./src/provider.js";
