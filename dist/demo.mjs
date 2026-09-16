@@ -739,7 +739,7 @@ function createAvatarRenderer(options = {}) {
   const session = new AvatarSession(options);
   const host = new AvatarBrowserHost({
     session,
-    assetsPath: options.assetsPath ?? fileURLToPath(new URL("../browser/", import.meta.url)),
+    assetsPath: options.assetsPath ?? fileURLToPath(new URL("./browser/", import.meta.url)),
     routeBase: options.routeBase ?? "/avatar",
     ...options.token ? { token: options.token } : {},
     ...options.maxTransportBufferedBytes ? { maxTransportBufferedBytes: options.maxTransportBufferedBytes } : {}

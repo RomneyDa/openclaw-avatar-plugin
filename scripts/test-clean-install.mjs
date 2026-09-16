@@ -36,11 +36,18 @@ try {
     [
       "--input-type=module",
       "--eval",
-      "const renderer = await import('openclaw-avatar-plugin/renderer'); if (typeof renderer.createAvatarRenderer !== 'function') throw new Error('renderer subpath failed to load');",
+      [
+        "const rendererModule = await import('openclaw-avatar-plugin/renderer');",
+        "if (typeof rendererModule.createAvatarRenderer !== 'function') throw new Error('renderer subpath failed to load');",
+        "const renderer = rendererModule.createAvatarRenderer({ token: 'clean-install-proof' });",
+        "await renderer.start();",
+        "try { const response = await fetch(renderer.rendererUrl); if (!response.ok) throw new Error('packaged renderer failed to serve'); }",
+        "finally { await renderer.stop(); }",
+      ].join(" "),
     ],
     { cwd: directory, stdio: "inherit" },
   );
-  console.log("clean packed install passed: renderer subpath loaded without OpenClaw, FaceTime, OBS, or provider code");
+  console.log("clean packed install passed: default renderer assets served without OpenClaw, FaceTime, OBS, or provider code");
 } finally {
   fs.rmSync(directory, { recursive: true, force: true });
 }
